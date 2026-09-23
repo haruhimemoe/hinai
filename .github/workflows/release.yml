@@ -40,12 +40,11 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: test "v$(node -p "require('./package.json').version")" = "$TAG"
 
-      # The version's own prerelease part decides the dist-tag, not GitHub's prerelease checkbox:
-      # a "-" in package.json's version (e.g. 0.2.0-beta.1) goes to "next", never "latest".
+      # A version with a prerelease part (a "-", e.g. 0.2.0-rc.1) publishes under the "next"
+      # dist-tag, never "latest", whatever the GitHub release's prerelease checkbox says.
       - name: Publish
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          if [[ "$VERSION" == *-* ]]; then
+          if node -p "require('./package.json').version" | grep -q -- -; then
             npm publish --provenance --access public --tag next
           else
             npm publish --provenance --access public

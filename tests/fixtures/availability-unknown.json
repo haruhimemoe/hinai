@@ -1,0 +1,11 @@
+{
+  "beatmapset_id": 999999999,
+  "code": "beatmapset_unknown",
+  "docs": "https://mirror.hinamizawa.ai/docs/beatmap-info",
+  "error": "no source this mirror can ask knows this beatmapset",
+  "forensics": "https://mirror.hinamizawa.ai/api/v1/hinai/forensics/request/01M35N0AWQYHD76JHFXGDMZYWS",
+  "hint": "definitive for now: not crawled, not in the partner index, and osu! does not know it (or the id is implausibly far past the newest set)",
+  "request_id": "01M35N0AWQYHD76JHFXGDMZYWS",
+  "retryable": false,
+  "success": false
+}

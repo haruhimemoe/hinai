@@ -1,0 +1,72 @@
+{
+  "name": "@haruhimemoe/hinai",
+  "version": "0.1.0",
+  "description": "Client for the hinai osu! beatmap mirror (mirror.hinamizawa.ai): difficulty metadata as @haruhimemoe/osu BeatmapMeta, set availability, and streamed .osz downloads with progress, abort and retry hints. Works in browsers and on servers.",
+  "keywords": [
+    "osu",
+    "osu!",
+    "beatmap",
+    "mirror",
+    "osz",
+    "hinai"
+  ],
+  "homepage": "https://github.com/haruhimemoe/hinai#readme",
+  "bugs": "https://github.com/haruhimemoe/hinai/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haruhimemoe/hinai.git"
+  },
+  "license": "MIT",
+  "author": "David (https://dvh.sh)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "packageManager": "bun@1.4.2",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "bun run clean && tsc -p tsconfig.build.json",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:dist": "bun run build && node scripts/smoke.mjs",
+    "prepublishOnly": "bun run check && bun run typecheck && bun run test && bun run test:dist",
+    "check:consumer": "bun run build && node scripts/check-consumer.mjs"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.16"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "26.6.2",
+    "@vitest/coverage-v8": "5.0.1",
+    "fflate": "0.8.3",
+    "msw": "2.15.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1",
+    "zod": "4.6.5"
+  },
+  "dependencies": {
+    "@haruhimemoe/osu": "^0.1.0"
+  }
+}

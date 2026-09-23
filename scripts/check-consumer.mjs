@@ -2,7 +2,8 @@
  * @file scripts/check-consumer.mjs
  * @desc Installs the packed package with a given zod version into a throwaway project, then
  *       typechecks a consumer strictly (no skipLibCheck, so broken .d.ts can't hide as `any`) and
- *       runs it. Proves the zod peer range's floor. Usage: node scripts/check-consumer.mjs <zod
+ *       runs it. Proves the zod peer range's floor, and that options accept an explicit undefined
+ *       under exactOptionalPropertyTypes. Usage: node scripts/check-consumer.mjs <zod
  *       version> [local package dirs...] (after `bun run build`). Needs the npm registry; list
  *       sibling packages (e.g. ../osu) to install them from their own tarballs instead, before
  *       they're published.
@@ -59,6 +60,24 @@ if (meta?.title !== "t" || lookup.missing[0] !== 76) throw new Error("lookup");
 if (!setDownloadUrl(1).endsWith("?noVideo=true")) throw new Error("url");
 if (!(new HinaiError("x", "y") instanceof Error)) throw new Error("error");
 void wrong;
+
+// Under exactOptionalPropertyTypes, every option takes undefined as "not given" (an unset env var).
+const env: Record<string, string | undefined> = {};
+const maybeSignal: AbortSignal | undefined = env.ABORT ? new AbortController().signal : undefined;
+const zip = Uint8Array.from([0x50, 0x4b, 0x03, 0x04]);
+const loose = createHinaiClient({
+  baseUrl: env.MIRROR,
+  userAgent: env.UA,
+  timeoutMs: undefined,
+  fetch: async () => new Response(zip),
+});
+await loose.getBeatmaps([], { signal: maybeSignal });
+const osz = await loose.downloadSet(1, {
+  signal: maybeSignal,
+  onProgress: undefined,
+  video: undefined,
+});
+if (osz.size !== 4) throw new Error("download");
 console.log("consumer: ok");
 `;
 

@@ -3,7 +3,7 @@
  * @desc hinai client: field mapping, missing ids, batching, dedupe, and each failure mode.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Tue Sep 22, 2026
+ * @modified Wed Sep 23, 2026
  */
 
 import { HttpResponse, http } from "msw";
@@ -100,7 +100,7 @@ describe("getBeatmaps", () => {
     });
   });
 
-  it("treats an unreadable 5xx body as a retryable bad_response", async () => {
+  it("treats an unreadable 5xx body as a retryable http_error", async () => {
     server.use(
       http.get(
         HINAI_BATCH_URL,
@@ -108,7 +108,7 @@ describe("getBeatmaps", () => {
       ),
     );
     await expect(client.getBeatmaps([1])).rejects.toMatchObject({
-      code: "bad_response",
+      code: "http_error",
       status: 502,
       retryable: true,
     });

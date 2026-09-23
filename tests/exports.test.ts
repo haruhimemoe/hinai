@@ -15,6 +15,7 @@ it("exports the documented runtime API", () => {
     [
       "HINAI_BASE_URL",
       "HINAI_BATCH_LIMIT",
+      "HINAI_TIMEOUT_MS",
       "HinaiError",
       "MAX_RETRY_DELAY_MS",
       "OSZ_MIME",

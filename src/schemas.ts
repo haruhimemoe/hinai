@@ -1,7 +1,7 @@
 /**
  * @file src/schemas.ts
  * @desc Zod shapes for hinai-specific responses (errors, availability). Beatmap rows use the
- *       shared osu!-v2 row in src/schemas/osu-beatmap.ts.
+ *       osu!-v2 row schema from @haruhimemoe/osu/shapes.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
  * @modified Wed Sep 23, 2026

@@ -8,7 +8,7 @@ A client for the [hinai beatmap mirror](https://mirror.hinamizawa.ai) (mirror.hi
 - **Errors that say what to do:** every failure is a `HinaiError` with a `code`, whether trying again can help (`retryable`), the mirror's `Retry-After`, its `hint`, and the `requestId` to quote.
 - **Timeouts:** metadata and availability requests give up after 10 s (`timeoutMs`). A download only waits that long for the mirror to start answering, then streams for as long as it takes.
 
-No auth, and CORS is open, so it runs in browsers as well as on servers.
+No auth, and CORS is open, so it runs in browsers and workers as well as on servers.
 
 ## Install
 
@@ -17,6 +17,8 @@ bun add @haruhimemoe/hinai zod
 ```
 
 It depends on `@haruhimemoe/osu` for the beatmap shapes. `zod` (4.0.16 or later in 4.x) is a peer dependency.
+
+**Compatibility:** Node >= 22.12 on servers. In browsers and workers: Safari 17.4+, Chrome 120+, or Firefox 124+ (the floor is `AbortSignal.any` and `URL.canParse`; older engines throw a plain `TypeError` instead of a `HinaiError`).
 
 ## Use
 
@@ -27,13 +29,15 @@ const hinai = createHinaiClient(); // in a browser
 // On a server, say who you are, as the mirror asks:
 // createHinaiClient({ userAgent: "pools.haruhime.moe (+https://pools.haruhime.moe)" })
 
+const controller = new AbortController();
+
 const { found, missing } = await hinai.getBeatmaps([129891, 75], { signal: controller.signal });
 
-const { downloadable, reason } = await hinai.getAvailability(39804, controller.signal);
+const { downloadable, reason } = await hinai.getAvailability(39804, { signal: controller.signal });
 const osz = await hinai.downloadSet(39804, {
   video: false,
   signal: controller.signal,
-  onProgress: ({ loaded, total }) => render(loaded, total),
+  onProgress: ({ loaded, total }) => console.log(loaded, total),
 });
 ```
 
@@ -45,25 +49,31 @@ Options:
 
 | Option | Default | Notes |
 | --- | --- | --- |
-| `baseUrl` | `https://mirror.hinamizawa.ai` | Absolute http(s) URL, else a `RangeError`. Trailing slashes are dropped. |
-| `userAgent` | none | Servers only. Ignored in a browser (where `document` exists): pages can't set it, and an extra header would force a CORS preflight. |
-| `timeoutMs` | `10_000` (`HINAI_TIMEOUT_MS`) | Per metadata or availability request, body included. For a download, only until the headers arrive. |
+| `baseUrl` | `https://mirror.hinamizawa.ai` (`HINAI_BASE_URL`) | Absolute http(s) URL, else a `RangeError`. Trailing slashes are dropped. |
+| `userAgent` | none | Servers only. Ignored in a browser (where `document` exists) or a worker (`self` with no `window`): pages and workers can't set it, and an extra header would force a CORS preflight. |
+| `timeoutMs` | `10_000` (`HINAI_TIMEOUT_MS`) | Per metadata or availability request, body included. For a download, only until the headers arrive. Must be an integer from 1 to 2147483647 (2^31 - 1: `setTimeout`'s own limit), else a `RangeError`. |
 | `fetch` | `globalThis.fetch` | For tests or a custom agent. |
 
-Set ids that aren't positive integers throw a `RangeError` before any request.
+Set ids that aren't positive integers throw a `RangeError` before any request. `getBeatmaps` batches at most `HINAI_BATCH_LIMIT` (100) ids per call.
 
 ### Retrying
 
 ```ts
-for (let attempt = 1; ; attempt++) {
-  try {
-    return await hinai.downloadSet(setId);
-  } catch (error) {
-    if (!(error instanceof HinaiError) || !error.retryable || attempt === 4) throw error;
-    await sleep(backoffDelayMs(attempt, error.retryAfterMs)); // Retry-After, else 1s, 2s, 4s…
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function downloadWithRetries(setId: number) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await hinai.downloadSet(setId);
+    } catch (error) {
+      if (!(error instanceof HinaiError) || !error.retryable || attempt === 4) throw error;
+      await sleep(backoffDelayMs(attempt, error.retryAfterMs)); // Retry-After, else 1s, 2s, 4s…
+    }
   }
 }
 ```
+
+`backoffDelayMs` and `parseRetryAfter` cap their wait at `MAX_RETRY_DELAY_MS` (60 s).
 
 | `code` | Meaning | Retry? |
 | --- | --- | --- |
@@ -78,7 +88,7 @@ for (let attempt = 1; ; attempt++) {
 
 - **Downloads are limited to 1000 requests a minute per IP.** JSON endpoints aren't metered. Download a few sets at a time (4 works well), cache what you downloaded, and honor `Retry-After`.
 - **Ids:** metadata takes difficulty ids; downloads and availability take set ids (`beatmapsetId`).
-- **Debugging:** every response carries `x-hinai-request-id`, and a `HinaiError` keeps it as `requestId` (null when the header is missing or a browser can't read it). Include it when reporting a problem to the mirror's maintainer.
+- **Debugging:** every response carries `x-hinai-request-id` and, on an error, `x-hinai-forensics`; a `HinaiError` keeps them as `requestId` and `forensicsUrl` (null when a header is missing or a browser can't read it). Include both when reporting a problem to the mirror's maintainer.
 - **Don't re-host `.osz` files.** Rights holders use the mirror's [takedown process](https://mirror.hinamizawa.ai/docs/content-takedowns).
 - The full API is in the mirror's OpenAPI document: https://mirror.hinamizawa.ai/api/v1/hinai/openapi.json
 
@@ -106,5 +116,8 @@ CI runs `bun install --frozen-lockfile`, so it can't pass until a lockfile is co
 
 1. Publish `@haruhimemoe/osu` 0.1 to npm.
 2. Here: delete the symlink and the local `bun.lock`, then `bun install`, which now resolves osu from the registry.
-3. Take `bun.lock` out of `.git/info/exclude` and commit it.
-4. Push. Once CI passes, publish this package.
+3. Before committing the lockfile, run the full checks against the registry copy of osu (no `../osu` argument): `bun run check && bun run typecheck && bun run test:coverage && bun run test:dist && node scripts/check-consumer.mjs 4.0.16`. This proves the published osu has the `./shapes` export hinai needs.
+4. Take `bun.lock` out of `.git/info/exclude` and commit it.
+5. Push. Once CI passes, publish this package: tag a GitHub Release `v0.1.0` (release.yml checks the tag against `package.json`).
+
+Publishing itself is `release.yml`, gated by a GitHub environment named `npm` plus an npm trusted-publisher entry for that workflow. npm only lets you configure a trusted publisher on a package that already exists on the registry, so the very first release goes out by hand from a clean checkout of the tagged commit, after `bun run build` and all checks pass: `npm publish --access public --provenance=false`. Then configure the trusted publisher (`npm trust github @haruhimemoe/hinai --file release.yml --repo haruhimemoe/hinai --env npm --allow-publish`, needs npm >= 11.15.0 and 2FA), and every later release goes through `release.yml`.

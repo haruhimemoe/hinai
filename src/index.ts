@@ -11,4 +11,3 @@
 export * from "./client.js";
 export * from "./errors.js";
 export * from "./retry.js";
-export { hinaiAvailabilitySchema, hinaiErrorSchema } from "./schemas.js";

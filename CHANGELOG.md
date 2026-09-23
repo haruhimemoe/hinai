@@ -5,7 +5,7 @@ All notable changes to `@haruhimemoe/hinai`.
 ## 0.1.0 (unreleased)
 
 - First release, extracted from packs.haruhime.moe's hinai client and downloader.
-- `createHinaiClient({ baseUrl?, fetch?, userAgent?, timeoutMs? })` with `getBeatmaps`, `getAvailability` and `downloadSet`; `setDownloadUrl`, `OSZ_MIME`, `HINAI_TIMEOUT_MS`, `HinaiError`, `parseRetryAfter`, `backoffDelayMs`.
+- `createHinaiClient({ baseUrl?, fetch?, userAgent?, timeoutMs? })` with `getBeatmaps`, `getAvailability` and `downloadSet`. See the README for the full exported surface; `tests/exports.test.ts` pins it exactly.
 - Changes from packs:
   - One client instead of `createHinaiClient` plus `createHinaiDownloader`.
   - An optional `userAgent` for servers.
@@ -20,4 +20,14 @@ All notable changes to `@haruhimemoe/hinai`.
   - The zip signature is checked on the first bytes, so a non-zip body stops early. Unread bodies are released. An error thrown by `onProgress` passes through untouched.
   - `userAgent` is ignored in a browser.
   - Option types accept an explicit `undefined` under `exactOptionalPropertyTypes`, and `BeatmapOptions` is exported.
+- Pre-publish review fixes:
+  - `getAvailability(setId, { signal })`, matching `getBeatmaps` and `downloadSet`; `AvailabilityOptions` is exported. **Breaking** vs. the first draft above (positional `signal`), fixed before 0.1.0 ships.
+  - `timeoutMs` must be an integer from 1 to 2147483647 (2^31 - 1): `setTimeout` overflows and clamps to ~1 ms beyond that, timing every request out almost immediately.
+  - `hinaiAvailabilitySchema` and `hinaiErrorSchema` are no longer exported (they were an internal, partial view of the mirror's shapes). `HINAI_BASE_URL`, `HINAI_BATCH_LIMIT` and `MAX_RETRY_DELAY_MS` stay exported and are documented in the README.
+  - `userAgent` is also ignored in workers (no `document`, but `self` with no `window`), where it would force the same CORS preflight.
+  - A mirror error body's `hint` and `retryable` may now be explicitly `null`, not just absent, without losing the mirror's own error code.
+  - A 404's `hint` is passed through when the mirror's body parses (`code` stays `not_found`).
+  - `HinaiError` gains `forensicsUrl` (from `x-hinai-forensics`), null when absent.
+  - `HinaiError.code` is typed `HinaiErrorCode` (the client's own codes, or `string & {}` for the mirror's).
+  - A download's `total` becomes `null` once `loaded` passes it (a compressing proxy can report the smaller encoded size in `content-length`).
 - Needs `@haruhimemoe/osu` 0.1 on npm first.

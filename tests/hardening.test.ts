@@ -72,8 +72,20 @@ describe("timeouts", () => {
     expect(HINAI_TIMEOUT_MS).toBe(10_000);
   });
 
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])("refuses timeoutMs %s", (timeoutMs) => {
+  it.each([
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    2_147_483_648,
+    Number.MAX_SAFE_INTEGER,
+  ])("refuses timeoutMs %s", (timeoutMs) => {
     expect(() => createHinaiClient({ timeoutMs })).toThrow(RangeError);
+  });
+
+  it("accepts the largest timeoutMs setTimeout can hold without overflowing", () => {
+    expect(() => createHinaiClient({ timeoutMs: 2_147_483_647 })).not.toThrow();
   });
 
   it("gives up on a metadata request that takes longer than timeoutMs", async () => {
@@ -146,7 +158,7 @@ describe("aborts stay aborts", () => {
       setTimeout(() => controller.abort(reason), 5);
       return new Response(stalled(init).body);
     });
-    expect(await failure(client.getAvailability(1, controller.signal))).toBe(reason);
+    expect(await failure(client.getAvailability(1, { signal: controller.signal }))).toBe(reason);
   });
 
   it("while reading an error body", async () => {
@@ -202,6 +214,21 @@ describe("metadata errors", () => {
     });
   });
 
+  it("keeps the mirror's code when hint and retryable are explicitly null", async () => {
+    const { client } = stub(() =>
+      Response.json(
+        { code: "upstream_relay_shed", error: "Slow down.", hint: null, retryable: true },
+        { status: 429 },
+      ),
+    );
+    expect(await failure(client.getBeatmaps([1]))).toMatchObject({
+      code: "upstream_relay_shed",
+      status: 429,
+      retryable: true,
+      hint: null,
+    });
+  });
+
   it.each([403, 401])("doesn't call an HTML %i page a retryable bad_response", async (status) => {
     const { client } = stub(() => new Response("<html>denied</html>", { status }));
     expect(await failure(client.getBeatmaps([1]))).toMatchObject({
@@ -211,13 +238,41 @@ describe("metadata errors", () => {
     });
   });
 
-  it("turns a 404 into a non-retryable not_found and releases the body", async () => {
-    const { body, state } = stalled();
-    const { client } = stub(() => new Response(body, { status: 404 }));
+  it("turns a 404 into a non-retryable not_found and passes its hint through", async () => {
+    const { client } = stub(() =>
+      Response.json(
+        { code: "beatmapset_unknown", error: "nope", hint: "try later" },
+        { status: 404 },
+      ),
+    );
     const error = await failure(client.getBeatmaps([1]));
-    expect(error).toMatchObject({ code: "not_found", status: 404, retryable: false });
+    expect(error).toMatchObject({
+      code: "not_found",
+      status: 404,
+      retryable: false,
+      hint: "try later",
+    });
     expect((error as Error).message).not.toContain("beatmapset");
-    expect(state.cancelled).toBe(true);
+  });
+
+  it("keeps a 404's not_found with a null hint when the body doesn't parse", async () => {
+    const { client } = stub(() => new Response("<html>", { status: 404 }));
+    expect(await failure(client.getBeatmaps([1]))).toMatchObject({
+      code: "not_found",
+      status: 404,
+      hint: null,
+    });
+  });
+
+  it("keeps a 404's not_found with a null hint when the body parses without one", async () => {
+    const { client } = stub(() =>
+      Response.json({ code: "beatmapset_unknown", error: "nope" }, { status: 404 }),
+    );
+    expect(await failure(client.getBeatmaps([1]))).toMatchObject({
+      code: "not_found",
+      status: 404,
+      hint: null,
+    });
   });
 
   it("calls a 200 that isn't JSON a retryable bad_response", async () => {
@@ -283,11 +338,17 @@ describe("URLs and ids", () => {
 });
 
 describe("download bodies", () => {
-  it("releases the body of a 404 it doesn't read", async () => {
-    const { body, state } = stalled();
-    const { client } = stub(() => new Response(body, { status: 404 }));
-    expect(await failure(client.downloadSet(1))).toMatchObject({ code: "not_found" });
-    expect(state.cancelled).toBe(true);
+  it("turns a download's 404 into a not_found and passes its hint through", async () => {
+    const { client } = stub(() =>
+      Response.json(
+        { code: "beatmapset_unknown", error: "nope", hint: "try later" },
+        { status: 404 },
+      ),
+    );
+    expect(await failure(client.downloadSet(1))).toMatchObject({
+      code: "not_found",
+      hint: "try later",
+    });
   });
 
   it("lets an onProgress error through untouched and stops reading", async () => {
@@ -317,6 +378,14 @@ describe("download bodies", () => {
     expect(progress).toEqual([]);
   });
 
+  it("drops total once a compressing proxy makes loaded pass the encoded content-length", async () => {
+    const bytes = Uint8Array.from([...ZIP_HEAD, 1, 2, 3, 4, 5, 6]);
+    const { client } = stub(() => new Response(bytes, { headers: { "content-length": "3" } }));
+    const progress: (number | null)[] = [];
+    await client.downloadSet(1, { onProgress: (p) => progress.push(p.total) });
+    expect(progress.at(-1)).toBeNull();
+  });
+
   it("reads a zip signature split across chunks", async () => {
     const { client } = stub(
       () =>
@@ -342,7 +411,7 @@ describe("download bodies", () => {
   });
 });
 
-describe("requestId and hint", () => {
+describe("requestId, hint and forensicsUrl", () => {
   it("carries the request id header and the mirror's hint", async () => {
     const { client } = stub(() =>
       Response.json(
@@ -353,6 +422,21 @@ describe("requestId and hint", () => {
     expect(await failure(client.downloadSet(1))).toMatchObject({
       requestId: "01ABC",
       hint: "Try in a minute.",
+    });
+  });
+
+  it("carries the forensics header", async () => {
+    const { client } = stub(() =>
+      Response.json(
+        { code: "upstream_relay_shed", error: "Slow down." },
+        {
+          status: 429,
+          headers: { "x-hinai-forensics": "https://mirror.hinamizawa.ai/api/v1/hinai/f/01ABC" },
+        },
+      ),
+    );
+    expect(await failure(client.downloadSet(1))).toMatchObject({
+      forensicsUrl: "https://mirror.hinamizawa.ai/api/v1/hinai/f/01ABC",
     });
   });
 
@@ -368,7 +452,11 @@ describe("requestId and hint", () => {
   });
 
   it("is null when the mirror sent neither", () => {
-    expect(new HinaiError("x", "y")).toMatchObject({ requestId: null, hint: null });
+    expect(new HinaiError("x", "y")).toMatchObject({
+      requestId: null,
+      hint: null,
+      forensicsUrl: null,
+    });
   });
 });
 
@@ -393,6 +481,14 @@ describe("headers", () => {
 
   it("ignores userAgent in a browser, where it can't be set", async () => {
     vi.stubGlobal("document", {});
+    const { client, calls } = stub(() => Response.json([]), { userAgent: "pools" });
+    await client.getBeatmaps([1]);
+    expect(new Headers(calls[0]?.init?.headers).has("user-agent")).toBe(false);
+  });
+
+  it("ignores userAgent in a worker, which has no document either", async () => {
+    vi.stubGlobal("self", { importScripts: () => undefined });
+    vi.stubGlobal("window", undefined);
     const { client, calls } = stub(() => Response.json([]), { userAgent: "pools" });
     await client.getBeatmaps([1]);
     expect(new Headers(calls[0]?.init?.headers).has("user-agent")).toBe(false);

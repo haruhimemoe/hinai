@@ -21,8 +21,6 @@ it("exports the documented runtime API", () => {
       "OSZ_MIME",
       "backoffDelayMs",
       "createHinaiClient",
-      "hinaiAvailabilitySchema",
-      "hinaiErrorSchema",
       "parseRetryAfter",
       "setDownloadUrl",
     ]

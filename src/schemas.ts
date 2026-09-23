@@ -9,12 +9,12 @@
 
 import { z } from "zod";
 
-/** hinai's JSON error object (HTTP 4xx/5xx). */
+/** hinai's JSON error object (HTTP 4xx/5xx). `hint` and `retryable` may be absent or null. */
 export const hinaiErrorSchema = z.object({
   code: z.string(),
   error: z.string(),
-  hint: z.string().optional(),
-  retryable: z.boolean().optional(),
+  hint: z.string().nullish(),
+  retryable: z.boolean().nullish(),
 });
 
 /** GET /api/s/{setId}/availability (cross-mirror shape); only the fields we act on. */

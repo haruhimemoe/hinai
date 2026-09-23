@@ -3,9 +3,10 @@
  * @desc Client for the hinai beatmap mirror (mirror.hinamizawa.ai): difficulty metadata in
  *       osu!'s shape (mapped to BeatmapMeta), a set's availability, and streamed .osz downloads
  *       with progress, abort, and a zip-signature check on the first bytes. No auth; CORS is open,
- *       so it runs in browsers, which send no custom headers (no preflight). On a server, pass
- *       userAgent. Metadata and availability requests give up after timeoutMs; downloads only
- *       wait that long for the headers, then stream for as long as the caller's signal allows.
+ *       so it runs in browsers and workers, which send no custom headers (no preflight). On a
+ *       server, pass userAgent. Metadata and availability requests give up after timeoutMs;
+ *       downloads only wait that long for the headers, then stream for as long as the caller's
+ *       signal allows.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
  * @modified Wed Sep 23, 2026
@@ -31,6 +32,10 @@ export type BeatmapOptions = {
 export const OSZ_MIME = "application/x-osu-beatmap-archive";
 
 export type SetAvailability = { downloadable: boolean; reason: string | null };
+export type AvailabilityOptions = {
+  /** Cancels the request; it then rejects with the signal's reason. */
+  signal?: AbortSignal | undefined;
+};
 export type DownloadProgress = { loaded: number; total: number | null };
 export type DownloadOptions = {
   /** Cancels the download at any point; it then rejects with the signal's reason. */
@@ -51,12 +56,12 @@ const checkSetId = (setId: number): void => {
   if (!isId(setId)) throw new RangeError("setId must be a positive integer.");
 };
 const trimSlashes = (url: string): string => url.replace(/\/+$/, "");
-/** Frees the connection behind an unread body. Not awaited: a cancel can hang on some stubs. */
-const release = (response: Response): void => {
-  response.body?.cancel().catch(() => undefined);
-};
 const requestIdOf = (response: Response): string | null =>
   response.headers.get("x-hinai-request-id");
+const forensicsUrlOf = (response: Response): string | null =>
+  response.headers.get("x-hinai-forensics");
+/** setTimeout's ms limit (2^31 - 1); beyond this Node and browsers clamp to ~1 ms. */
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
  * @function setDownloadUrl
@@ -81,13 +86,15 @@ export type HinaiClientOptions = {
   fetch?: ((input: string | URL, init?: RequestInit) => Promise<Response>) | undefined;
   /**
    * Sent as User-Agent on every request, as the mirror asks. Servers only: in a browser (where
-   * `document` exists) it's ignored, since pages can't set it and extra headers force a preflight.
+   * `document` exists) or a worker (`self` with no `window`, and `importScripts`) it's ignored,
+   * since pages and workers can't set it and extra headers force a preflight.
    */
   userAgent?: string | undefined;
   /**
    * How long a metadata or availability request may take, body included, and how long a download
    * may wait for its headers (the body then streams with no limit but your signal). Default
-   * HINAI_TIMEOUT_MS (10 s).
+   * HINAI_TIMEOUT_MS (10 s). Must be an integer from 1 to 2147483647 (2^31 - 1): `setTimeout`
+   * overflows and gets clamped to ~1 ms beyond that, which would time out almost immediately.
    */
   timeoutMs?: number | undefined;
 };
@@ -107,8 +114,8 @@ type JsonRead = { ok: true; body: unknown } | { ok: false; cause: unknown };
  * @function createHinaiClient
  * @param options {HinaiClientOptions} base URL, fetch, timeout, and (on servers) a User-Agent
  * @returns {{ getBeatmaps, getAvailability, downloadSet }} the client
- * @throws {RangeError} when baseUrl isn't an absolute http(s) URL, or timeoutMs isn't a positive
- *         number
+ * @throws {RangeError} when baseUrl isn't an absolute http(s) URL, or timeoutMs isn't an integer
+ *         from 1 to 2147483647
  */
 export const createHinaiClient = (options: HinaiClientOptions = {}) => {
   const baseUrl = trimSlashes(options.baseUrl ?? HINAI_BASE_URL);
@@ -117,13 +124,16 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
     throw new RangeError("baseUrl must be an absolute http(s) URL.");
   }
   const timeoutMs = options.timeoutMs ?? HINAI_TIMEOUT_MS;
-  if (!(timeoutMs > 0 && Number.isFinite(timeoutMs))) {
-    throw new RangeError("timeoutMs must be a positive number.");
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) {
+    throw new RangeError(`timeoutMs must be an integer from 1 to ${MAX_TIMEOUT_MS}.`);
   }
   // Resolve globalThis.fetch per call so test interceptors installed later still apply.
   const doFetch =
     options.fetch ?? ((input: string | URL, init?: RequestInit) => globalThis.fetch(input, init));
-  const inBrowser = typeof document !== "undefined";
+  // Workers have no `document` either, and a non-safelisted header there forces a preflight too.
+  const inBrowser =
+    typeof document !== "undefined" ||
+    (typeof self !== "undefined" && typeof window === "undefined" && "importScripts" in self);
   const headers: Record<string, string> | undefined =
     options.userAgent && !inBrowser ? { "User-Agent": options.userAgent } : undefined;
 
@@ -174,13 +184,15 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
       status: response.status,
       retryable: true,
       requestId: requestIdOf(response),
+      forensicsUrl: forensicsUrlOf(response),
       cause,
     });
 
   /**
-   * The HinaiError for a non-OK response: not_found (with `notFound` as the message) for a 404,
-   * else the mirror's code, error and hint when its body has them, else http_error. 429 and 5xx
-   * are retryable unless the mirror says otherwise.
+   * The HinaiError for a non-OK response: not_found (with `notFound` as the message, never
+   * retryable) for a 404, else the mirror's code, error and hint when its body has them, else
+   * http_error. 429 and 5xx are retryable unless the mirror says otherwise. The mirror's own hint
+   * is passed through even on a 404, when its body parses.
    */
   const errorFor = async (
     response: Response,
@@ -189,20 +201,26 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
   ): Promise<HinaiError> => {
     const { status } = response;
     const requestId = requestIdOf(response);
-    if (status === 404) {
-      release(response);
-      return new HinaiError("not_found", notFound, { status, requestId });
-    }
+    const forensicsUrl = forensicsUrlOf(response);
     const retryable = status === 429 || status >= 500;
     const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"), Date.now());
     const read = await readJson(response, attempt);
     const parsed = hinaiErrorSchema.safeParse(read.ok ? read.body : null);
+    if (status === 404) {
+      return new HinaiError("not_found", notFound, {
+        status,
+        requestId,
+        forensicsUrl,
+        hint: parsed.success ? (parsed.data.hint ?? null) : null,
+      });
+    }
     return parsed.success
       ? new HinaiError(parsed.data.code, parsed.data.error, {
           status,
           retryable: parsed.data.retryable ?? retryable,
           retryAfterMs,
           requestId,
+          forensicsUrl,
           hint: parsed.data.hint,
         })
       : new HinaiError("http_error", `The beatmap mirror answered ${status}.`, {
@@ -210,6 +228,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
           retryable,
           retryAfterMs,
           requestId,
+          forensicsUrl,
         });
   };
 
@@ -243,9 +262,10 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
         status: response.status,
         retryable: true,
         requestId: requestIdOf(response),
+        forensicsUrl: forensicsUrlOf(response),
       });
     if (!response.body) throw notZip();
-    const total = Number(response.headers.get("content-length")) || null;
+    let total = Number(response.headers.get("content-length")) || null;
     const reader = response.body.getReader();
     const stop = () => {
       reader.cancel().catch(() => undefined);
@@ -276,6 +296,8 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
           if (head.length < ZIP_MAGIC.length) continue;
           if (!ZIP_MAGIC.every((byte, i) => head[i] === byte)) throw notZip();
         }
+        // A compressing proxy can report an encoded content-length shorter than the decoded body.
+        if (total !== null && loaded > total) total = null;
         onProgress?.({ loaded, total });
       }
     } catch (error) {
@@ -320,7 +342,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
     /**
      * @function getAvailability
      * @param setId {number} beatmapset id
-     * @param signal {AbortSignal} cancels the request
+     * @param options {AvailabilityOptions} an abort signal
      * @returns {Promise<SetAvailability>} downloadable unless the mirror says download_disabled
      *          (an unknown answer, null, counts as downloadable)
      * @throws {HinaiError} not_found for a set the mirror doesn't know, bad_response, timeout,
@@ -329,7 +351,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
      */
     async getAvailability(
       setId: number,
-      signal?: AbortSignal | undefined,
+      { signal }: AvailabilityOptions = {},
     ): Promise<SetAvailability> {
       checkSetId(setId);
       const attempt = begin(signal);

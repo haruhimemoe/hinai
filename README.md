@@ -98,26 +98,17 @@ MIT. See [LICENSE](LICENSE). Not affiliated with the hinai mirror, osu! or ppy P
 
 ## Develop
 
-`@haruhimemoe/osu` isn't on npm yet, so `bun install` can't resolve it from the registry, and `bun.lock` stays out of git for now (it's in `.git/info/exclude`). Until then, with an osu checkout next to this one (`../osu`):
-
-1. Install everything else: drop the `@haruhimemoe/osu` line from `dependencies` for a moment, run `bun install`, then put the line back. Don't commit that edit.
-2. Link the checkout: `ln -sfn ../../../osu node_modules/@haruhimemoe/osu`.
-3. Build it, since the link points at osu's `dist/`: `(cd ../osu && bun run build)`. Rebuild whenever osu changes.
-
-Then:
-
 ```sh
+bun install
 bun run check && bun run typecheck && bun run test:coverage && bun run test:dist
-node scripts/check-consumer.mjs 4.0.16 ../osu   # packs ../osu instead of pulling it from npm
-node scripts/check-consumer.mjs latest ../osu
+node scripts/check-consumer.mjs 4.0.16   # needs the npm registry
+node scripts/check-consumer.mjs latest
 ```
 
-CI runs `bun install --frozen-lockfile`, so it can't pass until a lockfile is committed. To release:
+To try an unreleased `@haruhimemoe/osu` change, pass its checkout: `node scripts/check-consumer.mjs 4.0.16 ../osu` packs `../osu` instead of installing osu from npm.
 
-1. Publish `@haruhimemoe/osu` 0.1 to npm.
-2. Here: delete the symlink and the local `bun.lock`, then `bun install`, which now resolves osu from the registry.
-3. Before committing the lockfile, run the full checks against the registry copy of osu (no `../osu` argument): `bun run check && bun run typecheck && bun run test:coverage && bun run test:dist && node scripts/check-consumer.mjs 4.0.16`. This proves the published osu has the `./shapes` export hinai needs.
-4. Take `bun.lock` out of `.git/info/exclude` and commit it.
-5. Push. Once CI passes, publish this package: tag a GitHub Release `v0.1.0` (release.yml checks the tag against `package.json`).
+### Releasing
 
-Publishing itself is `release.yml`, gated by a GitHub environment named `npm` plus an npm trusted-publisher entry for that workflow. npm only lets you configure a trusted publisher on a package that already exists on the registry, so the very first release goes out by hand from a clean checkout of the tagged commit, after `bun run build` and all checks pass: `npm publish --access public --provenance=false`. Then configure the trusted publisher (`npm trust github @haruhimemoe/hinai --file release.yml --repo haruhimemoe/hinai --env npm --allow-publish`, needs npm >= 11.15.0 and 2FA), and every later release goes through `release.yml`.
+`@haruhimemoe/osu`'s types are part of this package's API, so every osu minor (0.2, 0.3, …) needs a matching hinai release that depends on it.
+
+npm only lets you add a trusted publisher to a package that already exists, so the first release is manual. The owner publishes 0.1.0 from a clean checkout of the tagged commit: `bun run build`, every check above passing, then `npm publish --access public --provenance=false`. Next, configure the trusted publisher (needs npm 11.15.0 or later and 2FA): `npm trust github @haruhimemoe/hinai --file release.yml --repo haruhimemoe/hinai --env npm --allow-publish`. Every later release goes through `release.yml`: publish a GitHub release whose tag is `v` plus the `package.json` version. A version with a prerelease part (`0.2.0-rc.1`) goes to the `next` dist-tag, anything else to `latest`.

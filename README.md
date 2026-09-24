@@ -18,12 +18,10 @@ bun add @haruhimemoe/hinai zod
 
 It depends on `@haruhimemoe/osu` for the beatmap shapes. `zod` (4.0.16 or later in 4.x) is a peer dependency.
 
-**Compatibility:** Node >= 22.12 on servers. In browsers and workers: Safari 17.4+, Chrome 120+, or Firefox 124+ (the floor is `AbortSignal.any` and `URL.canParse`; older engines throw a plain `TypeError` instead of a `HinaiError`).
-
-## Use
+## Usage
 
 ```ts
-import { backoffDelayMs, createHinaiClient, HinaiError } from "@haruhimemoe/hinai";
+import { createHinaiClient } from "@haruhimemoe/hinai";
 
 const hinai = createHinaiClient(); // in a browser
 // On a server, say who you are, as the mirror asks:
@@ -45,7 +43,7 @@ const osz = await hinai.downloadSet(39804, {
 
 `getAvailability` throws `not_found` for a set the mirror doesn't know. When the mirror doesn't know whether a set is blocked (`download_disabled: null`), it comes back as `downloadable: true`.
 
-Options:
+Options to `createHinaiClient`:
 
 | Option | Default | Notes |
 | --- | --- | --- |
@@ -56,9 +54,53 @@ Options:
 
 Set ids that aren't positive integers throw a `RangeError` before any request. `getBeatmaps` batches at most `HINAI_BATCH_LIMIT` (100) ids per call.
 
+## API
+
+Everything below is exported from `@haruhimemoe/hinai`.
+
+**Client**
+
+| Export | Description |
+| --- | --- |
+| `createHinaiClient(options?)` | Builds the client: `getBeatmaps`, `getAvailability`, `downloadSet` (below). |
+| `HinaiClient` | Type of the object `createHinaiClient` returns. |
+| `HinaiClientOptions` | `baseUrl`, `fetch`, `userAgent`, `timeoutMs` — see the Options table above. |
+| `setDownloadUrl(setId, baseUrl?, video?)` | The `.osz` URL for a set, without downloading it. Throws `RangeError` for a bad `setId`. |
+| `HINAI_BASE_URL` | Default `baseUrl`: `"https://mirror.hinamizawa.ai"`. |
+| `HINAI_TIMEOUT_MS` | Default `timeoutMs`: `10_000`. |
+| `HINAI_BATCH_LIMIT` | Max ids per `getBeatmaps` call: `100`. |
+| `OSZ_MIME` | MIME type of the `Blob` `downloadSet` resolves to: `"application/x-osu-beatmap-archive"`. |
+
+**Methods (on the object `createHinaiClient` returns) and their shapes**
+
+| Export | Description |
+| --- | --- |
+| `getBeatmaps(ids, options?)` | `Promise<BeatmapLookup>`: metadata for every id the mirror knows. |
+| `BeatmapLookup` | `{ found: Map<number, BeatmapMeta>; missing: number[] }` |
+| `BeatmapOptions` | `{ signal? }` |
+| `getAvailability(setId, options?)` | `Promise<SetAvailability>`. Throws `RangeError` for a bad `setId`. |
+| `SetAvailability` | `{ downloadable: boolean; reason: string \| null }` |
+| `AvailabilityOptions` | `{ signal? }` |
+| `downloadSet(setId, options?)` | `Promise<Blob>`. Throws `RangeError` for a bad `setId`. |
+| `DownloadOptions` | `{ signal?; onProgress?; video? }` |
+| `DownloadProgress` | `{ loaded: number; total: number \| null }` |
+
+**Errors and retry**
+
+| Export | Description |
+| --- | --- |
+| `HinaiError` | `extends Error`. `code`, `status`, `retryable`, `retryAfterMs`, `requestId`, `hint`, `forensicsUrl`. |
+| `HinaiErrorCode` | The client's own codes (`network`, `timeout`, `bad_response`, `not_found`, `http_error`), or any string (the mirror's own, e.g. `too_many_ids`). |
+| `backoffDelayMs(attempt, retryAfterMs)` | ms to wait before retrying: the server's `Retry-After`, else 1s, 2s, 4s… |
+| `parseRetryAfter(header, now)` | Parses a `Retry-After` header (delta-seconds or an HTTP date) into ms. |
+| `MAX_RETRY_DELAY_MS` | Cap on both of the above: `60_000`. |
+
 ### Retrying
 
 ```ts
+import { backoffDelayMs, createHinaiClient, HinaiError } from "@haruhimemoe/hinai";
+
+const hinai = createHinaiClient();
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function downloadWithRetries(setId: number) {
@@ -73,7 +115,7 @@ async function downloadWithRetries(setId: number) {
 }
 ```
 
-`backoffDelayMs` and `parseRetryAfter` cap their wait at `MAX_RETRY_DELAY_MS` (60 s).
+### Errors
 
 | `code` | Meaning | Retry? |
 | --- | --- | --- |
@@ -92,23 +134,16 @@ async function downloadWithRetries(setId: number) {
 - **Don't re-host `.osz` files.** Rights holders use the mirror's [takedown process](https://mirror.hinamizawa.ai/docs/content-takedowns).
 - The full API is in the mirror's OpenAPI document: https://mirror.hinamizawa.ai/api/v1/hinai/openapi.json
 
+## Compatibility
+
+- **Node:** >= 22.12 on servers.
+- **Browsers and workers:** Safari 17.4+, Chrome 120+, or Firefox 124+ (the floor is `AbortSignal.any` and `URL.canParse`; older engines throw a plain `TypeError` instead of a `HinaiError`).
+- **Peer dependency:** `zod` ^4.0.16.
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Not affiliated with the hinai mirror, osu! or ppy Pty Ltd.
 
-## Develop
+---
 
-```sh
-bun install
-bun run check && bun run typecheck && bun run test:coverage && bun run test:dist
-node scripts/check-consumer.mjs 4.0.16   # needs the npm registry
-node scripts/check-consumer.mjs latest
-```
-
-To try an unreleased `@haruhimemoe/osu` change, pass its checkout: `node scripts/check-consumer.mjs 4.0.16 ../osu` packs `../osu` instead of installing osu from npm.
-
-### Releasing
-
-`@haruhimemoe/osu`'s types are part of this package's API, so every osu minor (0.2, 0.3, …) needs a matching hinai release that depends on it.
-
-npm only lets you add a trusted publisher to a package that already exists, so the first release is manual. The owner publishes 0.1.0 from a clean checkout of the tagged commit: `bun run build`, every check above passing, then `npm publish --access public --provenance=false`. Next, configure the trusted publisher (needs npm 11.15.0 or later and 2FA): `npm trust github @haruhimemoe/hinai --file release.yml --repo haruhimemoe/hinai --env npm --allow-publish`. Every later release goes through `release.yml`: publish a GitHub release whose tag is `v` plus the `package.json` version. A version with a prerelease part (`0.2.0-rc.1`) goes to the `next` dist-tag, anything else to `latest`.
+See [CHANGELOG.md](CHANGELOG.md) for release history and [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.

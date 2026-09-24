@@ -1,7 +1,3 @@
 @AGENTS.md
 
-# Claude-specific notes
-
-- Read a file before editing it. Prefer `Edit` over rewriting.
-- Never push, tag or publish without the owner's OK.
-- User instructions override this file.
+Claude Code follows AGENTS.md above. Read a file before editing it, and don't tag, publish or push without the maintainer's OK.

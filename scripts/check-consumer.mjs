@@ -3,10 +3,9 @@
  * @desc Installs the packed package with a given zod version into a throwaway project, then
  *       typechecks a consumer strictly (no skipLibCheck, so broken .d.ts can't hide as `any`) and
  *       runs it. Proves the zod peer range's floor, and that options accept an explicit undefined
- *       under exactOptionalPropertyTypes. Usage: node scripts/check-consumer.mjs <zod
- *       version> [local package dirs...] (after `bun run build`). Needs the npm registry; list
- *       sibling packages (e.g. ../osu) to install them from their own tarballs instead, before
- *       they're published.
+ *       under exactOptionalPropertyTypes. Usage: bun run check:consumer <zod version> [local
+ *       package dirs...] (builds first). Needs the npm registry; any local package dirs (say, a
+ *       copy of @haruhimemoe/osu) are packed and installed instead of their npm versions.
  * @author David @dvhsh (https://dvh.sh)
  * @created Wed Sep 23, 2026
  * @modified Wed Sep 23, 2026

@@ -1,0 +1,40 @@
+# @haruhimemoe/hinai
+
+> A TypeScript client for the hinai osu! beatmap mirror (mirror.hinamizawa.ai), published on npm as @haruhimemoe/hinai. `createHinaiClient()` returns `getBeatmaps(ids)` (difficulty metadata as `BeatmapMeta` from @haruhimemoe/osu/shapes, sent 100 ids per request, unknown or invalid ids returned in `missing`), `getAvailability(setId)` (whether a beatmapset can be downloaded) and `downloadSet(setId)` (the `.osz` as a Blob, no video by default, with progress, abort and a zip signature check). Every failure is a `HinaiError` with a `code`, `retryable`, the mirror's Retry-After, its hint, a request id and a forensics URL; aborts reject with the signal's reason. No auth, and CORS is open, so it runs in browsers, workers and on Node 22.12+. zod ^4.0.16 is a peer dependency. MIT licensed.
+
+## Docs
+
+- [Overview](https://github.com/haruhimemoe/hinai#readme): what the client does, in five bullets
+- [Install](https://github.com/haruhimemoe/hinai#install): npm or bun, the zod peer, and keeping @haruhimemoe/osu on a matching version
+- [Usage](https://github.com/haruhimemoe/hinai#usage): metadata, availability and a download in one runnable example
+- [Metadata](https://github.com/haruhimemoe/hinai#metadata): batching, `found` and `missing`
+- [Availability](https://github.com/haruhimemoe/hinai#availability): `downloadable`, `reason`, and unknown sets
+- [Downloads](https://github.com/haruhimemoe/hinai#downloads): video, the zip check, progress and timeouts
+- [Aborts and bad arguments](https://github.com/haruhimemoe/hinai#aborts-and-bad-arguments): what rejects with the signal's reason, and when a RangeError is thrown
+- [Options](https://github.com/haruhimemoe/hinai#options): `baseUrl`, `userAgent`, `timeoutMs`, `fetch`
+- [API](https://github.com/haruhimemoe/hinai#api): every export, with its signature and shape
+- [Retrying](https://github.com/haruhimemoe/hinai#retrying): a retry loop with `backoffDelayMs`
+- [Errors](https://github.com/haruhimemoe/hinai#errors): `HinaiError` fields and every error code, with whether to retry
+- [Etiquette](https://github.com/haruhimemoe/hinai#etiquette): the mirror's download limit, ids, debugging headers, takedowns
+- [Compatibility](https://github.com/haruhimemoe/hinai#compatibility): Node, browser and worker floors, module format, dependencies
+
+## Package
+
+- [npm package](https://www.npmjs.com/package/@haruhimemoe/hinai): published versions
+- [Source](https://github.com/haruhimemoe/hinai/tree/main/src): the TypeScript source
+- [AGENTS.md](https://github.com/haruhimemoe/hinai/blob/main/AGENTS.md): conventions, invariants and file layout for AI agents working in this repo
+
+## Related
+
+- [@haruhimemoe/osu shapes](https://github.com/haruhimemoe/osu#shapes): `BeatmapMeta` and the osu! beatmap row schema this client parses
+- [hinai mirror docs](https://mirror.hinamizawa.ai/docs): the mirror's own documentation
+- [hinai mirror OpenAPI](https://mirror.hinamizawa.ai/api/v1/hinai/openapi.json): the mirror's full API contract
+- [hinai mirror llms.txt](https://mirror.hinamizawa.ai/llms.txt): the mirror's guide for LLMs
+- [haruhime.moe](https://haruhime.moe): the osu! tournament tools that use this client
+
+## Optional
+
+- [CHANGELOG](https://github.com/haruhimemoe/hinai/blob/main/CHANGELOG.md): release history
+- [CONTRIBUTING](https://github.com/haruhimemoe/hinai/blob/main/CONTRIBUTING.md): setup, checks and changelog lines for contributors
+- [SECURITY](https://github.com/haruhimemoe/hinai/blob/main/SECURITY.md): how to report a vulnerability
+- [LICENSE](https://github.com/haruhimemoe/hinai/blob/main/LICENSE): MIT

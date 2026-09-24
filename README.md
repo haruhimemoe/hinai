@@ -136,7 +136,7 @@ Everything below is exported from `@haruhimemoe/hinai`.
 | `HinaiError` | `extends Error`, with `name` `"HinaiError"`. Fields in [Errors](#errors). |
 | `HinaiErrorCode` | The client's own codes (`network`, `timeout`, `bad_response`, `not_found`, `http_error`), or any string (the mirror's own, e.g. `upstream_relay_shed`). |
 | `backoffDelayMs(attempt, retryAfterMs)` | ms to wait after `attempt` failed tries (1-based): `retryAfterMs` when it isn't `null`, else 1s, 2s, 4s… capped at `MAX_RETRY_DELAY_MS`. |
-| `parseRetryAfter(header, now)` | Parses a `Retry-After` header (delta-seconds or an HTTP date; `now` in ms) into ms, from 0 to `MAX_RETRY_DELAY_MS`. `null` when the header is `null` or unreadable. |
+| `parseRetryAfter(header, now)` | Parses a `Retry-After` header into ms, from 0 to `MAX_RETRY_DELAY_MS`. It reads delta-seconds (`"120"`) or an HTTP date in the IMF-fixdate form (`"Tue, 22 Sep 2026 12:00:03 GMT"`, measured from `now` in ms). `null` when the header is `null` or in any other form (`"1.5"`, `"-5"`, an ISO date). |
 | `MAX_RETRY_DELAY_MS` | `60_000`: the cap on `parseRetryAfter`'s result and on the backoff. |
 
 ### Retrying

@@ -8,16 +8,21 @@
 
 export const MAX_RETRY_DELAY_MS = 60_000;
 
+/** An HTTP date in the IMF-fixdate form servers send (RFC 9110): Tue, 22 Sep 2026 12:00:03 GMT. */
+const IMF_FIXDATE = /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
 /**
  * @function parseRetryAfter
- * @param header {string | null} Retry-After value: delta-seconds or an HTTP date
+ * @param header {string | null} Retry-After value: delta-seconds or an IMF-fixdate HTTP date
  * @param now {number} current time in ms (Date.now())
- * @returns {number | null} wait in ms, clamped to [0, MAX_RETRY_DELAY_MS]; null when absent or unreadable
+ * @returns {number | null} wait in ms, clamped to [0, MAX_RETRY_DELAY_MS]; null when absent or in
+ *          any other form (Date.parse alone would read "1.5" or "-5" as a past date, so 0)
  */
 export const parseRetryAfter = (header: string | null, now: number): number | null => {
   if (header === null) return null;
   const text = header.trim();
   if (/^\d+$/.test(text)) return Math.min(Number(text) * 1000, MAX_RETRY_DELAY_MS);
+  if (!IMF_FIXDATE.test(text)) return null;
   const at = Date.parse(text);
   if (Number.isNaN(at)) return null;
   return Math.min(Math.max(0, at - now), MAX_RETRY_DELAY_MS);

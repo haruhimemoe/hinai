@@ -3,7 +3,7 @@
  * @desc Retry-After parsing (seconds and HTTP dates) and exponential backoff.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Tue Sep 22, 2026
+ * @modified Wed Sep 23, 2026
  */
 
 import { describe, expect, it } from "vitest";
@@ -22,6 +22,12 @@ describe("parseRetryAfter", () => {
     ["120", MAX_RETRY_DELAY_MS],
     ["Tue, 22 Sep 2026 12:00:03 GMT", 3000],
     ["Tue, 22 Sep 2026 11:59:00 GMT", 0],
+    // Not delta-seconds and not an IMF-fixdate: Date.parse alone would read these as past dates.
+    ["1.5", null],
+    ["-5", null],
+    ["2026-09-22", null],
+    ["2026-09-22T12:00:03Z", null],
+    ["Tue, 22 Foo 2026 12:00:03 GMT", null],
   ])("%j → %j", (header, ms) => {
     expect(parseRetryAfter(header, NOW)).toBe(ms);
   });

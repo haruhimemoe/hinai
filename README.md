@@ -5,7 +5,7 @@ A client for the [hinai beatmap mirror](https://mirror.hinamizawa.ai) (mirror.hi
 - **Metadata:** difficulties by id, as `BeatmapMeta` from [`@haruhimemoe/osu/shapes`](https://github.com/haruhimemoe/osu#shapes). Pass as many ids as you like; the client asks the mirror 100 at a time. Ids the mirror doesn't know come back in `missing`, and so do ids that aren't positive integers (those are never sent).
 - **Availability:** whether a set can be downloaded (a DMCA or other takedown says no).
 - **Downloads:** a set's `.osz`, read chunk by chunk with progress and abort. It's the no-video archive by default, and the first bytes are checked to really be a zip.
-- **Errors that say what to do:** every failure is a `HinaiError` with a `code`, whether trying again can help (`retryable`), the mirror's `Retry-After`, its `hint`, and the `requestId` and `forensicsUrl` to quote.
+- **Errors that say what to do:** a failed request rejects with a `HinaiError` that has a `code`, whether trying again can help (`retryable`), the mirror's `Retry-After`, its `hint`, and the `requestId` and `forensicsUrl` to quote. Aborts, bad arguments and errors thrown by your `onProgress` are the exceptions (see [Aborts and bad arguments](#aborts-and-bad-arguments)).
 - **Timeouts:** metadata and availability requests give up after 10 s (`timeoutMs`). A download only waits that long for the mirror to start answering, then streams for as long as it takes.
 
 No auth, and CORS is open, so it runs in browsers and workers as well as on servers.
@@ -74,7 +74,7 @@ if (downloadable) {
 - `video: false` (the default) asks for the archive without its video. The mirror only keeps no-video archives itself, so `video: true` can be slower.
 - The first 4 bytes must be the zip signature (`PK\x03\x04`), else the call rejects with `bad_response`.
 - `onProgress` is called once per chunk, only after that check, with `{ loaded, total }`. `total` is the `content-length`, or `null` when the mirror didn't send one or the body turned out longer.
-- `timeoutMs` only covers the wait for the response headers. After that, only your `signal` stops a download.
+- `timeoutMs` only covers the wait for the response headers (and, on an error status, reading the mirror's error body). Once the archive streams, only your `signal` stops a download.
 - `setDownloadUrl(setId, baseUrl?, video?)` builds the same URL without downloading anything.
 
 ### Aborts and bad arguments
@@ -91,14 +91,14 @@ Options to `createHinaiClient`:
 | --- | --- | --- |
 | `baseUrl` | `https://mirror.hinamizawa.ai` (`HINAI_BASE_URL`) | Absolute http(s) URL, else a `RangeError`. Trailing slashes are dropped. |
 | `userAgent` | none | Sent as `User-Agent`, on servers only. Ignored in a browser (where `document` exists) or a worker (`self` with `importScripts` and no `window`): pages and workers can't set it, and an extra header would force a CORS preflight. |
-| `timeoutMs` | `10_000` (`HINAI_TIMEOUT_MS`) | Per metadata or availability request, body included. For a download, only until the headers arrive. Must be an integer from 1 to 2147483647 (2^31 - 1: `setTimeout`'s own limit), else a `RangeError`. |
+| `timeoutMs` | `10_000` (`HINAI_TIMEOUT_MS`) | Per metadata or availability request, body included. For a download, only until the headers arrive (plus the error body on an error status). Must be an integer from 1 to 2147483647 (2^31 - 1: `setTimeout`'s own limit), else a `RangeError`. |
 | `fetch` | `globalThis.fetch` | For tests or a custom agent. Without it, `globalThis.fetch` is looked up on every request, so a fetch mock installed later still applies. |
 
 Every option, and every method option, also accepts `undefined`, which means "use the default".
 
 ## API
 
-Everything below is exported from `@haruhimemoe/hinai`.
+Everything below is exported from `@haruhimemoe/hinai`, except `getBeatmaps`, `getAvailability` and `downloadSet`, which are methods on the client.
 
 **Client**
 
@@ -115,7 +115,7 @@ Everything below is exported from `@haruhimemoe/hinai`.
 
 **Methods (on the object `createHinaiClient` returns) and their shapes**
 
-| Export | Description |
+| Name | Description |
 | --- | --- |
 | `getBeatmaps(ids, options?)` | `Promise<BeatmapLookup>`: metadata for every difficulty id the mirror knows. |
 | `BeatmapLookup` | `{ found: Map<number, BeatmapMeta>; missing: number[] }` |
@@ -186,7 +186,7 @@ A `HinaiError` has:
 
 ## Etiquette
 
-- **Downloads are limited to 1000 requests a minute per IP.** JSON endpoints aren't metered. Download a few sets at a time (4 works well), cache what you downloaded, and honor `Retry-After`.
+- **Downloads are limited to 1000 requests a minute per IP.** JSON endpoints aren't metered. Download one or two sets at a time, as the mirror asks, cache what you downloaded, and honor `Retry-After`.
 - **Ids:** metadata takes difficulty ids; downloads and availability take set ids (`beatmapsetId`).
 - **Debugging:** every mirror response carries `x-hinai-request-id` and `x-hinai-forensics` (a lookup URL for that request). A `HinaiError` keeps them as `requestId` and `forensicsUrl` whenever a response arrived. Include both when reporting a problem to the mirror's maintainers.
 - **Don't re-host `.osz` files.** Rights holders use the mirror's [takedown process](https://mirror.hinamizawa.ai/docs/content-takedowns).

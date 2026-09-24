@@ -30,7 +30,7 @@ Read [AGENTS.md](./AGENTS.md) first, especially "Browser-first" and "Public API 
    bun run check:consumer latest
    ```
 
-   To try an unreleased `@haruhimemoe/osu` change as well, add the path to your local copy of it after the zod version (for example `bun run check:consumer 4.0.16 path/to/osu`). It's packed and installed instead of the npm version.
+   To try an unreleased `@haruhimemoe/osu` change as well, add the path to your local copy of it after the zod version (for example `bun run check:consumer 4.0.16 path/to/osu`). It's packed and installed instead of the npm version. Run `bun run build` in that copy first: packing doesn't build it, so whatever is in its `dist/` gets tested.
 
 6. Add a line to `CHANGELOG.md` under `## [Unreleased]`, in the right [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) section (Added, Changed, Deprecated, Removed, Fixed, Security).
 

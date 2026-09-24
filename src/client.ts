@@ -104,8 +104,11 @@ type Attempt = {
   signal: AbortSignal;
   /** Stops the deadline (a download, once its body starts). */
   stop: () => void;
-  /** Throws what an abort or timeout means (the caller's reason, or a timeout); else returns. */
-  settle: (cause: unknown) => void;
+  /**
+   * Throws what an abort or timeout means (the caller's reason, or a timeout carrying the ids of
+   * `response`, when there is one); else returns.
+   */
+  settle: (cause: unknown, response?: Response) => void;
 };
 
 type JsonRead = { ok: true; body: unknown } | { ok: false; cause: unknown };
@@ -146,13 +149,18 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
     return {
       signal: signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal,
       stop: () => clearTimeout(timer),
-      settle(cause) {
+      settle(cause, response) {
         if (signal?.aborted) throw signal.reason;
         if (deadline.signal.aborted) {
           throw new HinaiError(
             "timeout",
             `The beatmap mirror didn't answer in time (${timeoutMs} ms). Try again.`,
-            { retryable: true, cause },
+            {
+              retryable: true,
+              requestId: response ? requestIdOf(response) : null,
+              forensicsUrl: response ? forensicsUrlOf(response) : null,
+              cause,
+            },
           );
         }
       },
@@ -174,7 +182,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
     try {
       return { ok: true, body: await response.json() };
     } catch (cause) {
-      attempt.settle(cause);
+      attempt.settle(cause, response);
       return { ok: false, cause };
     }
   };
@@ -284,6 +292,8 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
           signal?.throwIfAborted();
           throw new HinaiError("network", "The download was interrupted. Try again.", {
             retryable: true,
+            requestId: requestIdOf(response),
+            forensicsUrl: forensicsUrlOf(response),
             cause,
           });
         }

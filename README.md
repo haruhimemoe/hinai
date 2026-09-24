@@ -171,8 +171,8 @@ A `HinaiError` has:
 | `retryable` | Whether trying again can help. |
 | `retryAfterMs` | The mirror's `Retry-After` in ms (at most 60 s) on an error status other than 404, else `null`. |
 | `hint` | The mirror's `hint` from its error body, else `null`. |
-| `requestId` | The response's `x-hinai-request-id`, else `null`. |
-| `forensicsUrl` | The response's `x-hinai-forensics`, else `null`. |
+| `requestId` | The response's `x-hinai-request-id`, else `null`. It is `null` when no response arrived (a `network` failure or a `timeout` before the headers). |
+| `forensicsUrl` | The response's `x-hinai-forensics`, else `null`, as for `requestId`. |
 | `cause` | The underlying error when there is one (for example fetch's `TypeError` or a JSON `SyntaxError`). |
 
 | `code` | Meaning | Retry? |
@@ -188,7 +188,7 @@ A `HinaiError` has:
 
 - **Downloads are limited to 1000 requests a minute per IP.** JSON endpoints aren't metered. Download a few sets at a time (4 works well), cache what you downloaded, and honor `Retry-After`.
 - **Ids:** metadata takes difficulty ids; downloads and availability take set ids (`beatmapsetId`).
-- **Debugging:** every mirror response carries `x-hinai-request-id` and `x-hinai-forensics` (a lookup URL for that request). A `HinaiError` keeps them as `requestId` and `forensicsUrl`. Include both when reporting a problem to the mirror's maintainers.
+- **Debugging:** every mirror response carries `x-hinai-request-id` and `x-hinai-forensics` (a lookup URL for that request). A `HinaiError` keeps them as `requestId` and `forensicsUrl` whenever a response arrived. Include both when reporting a problem to the mirror's maintainers.
 - **Don't re-host `.osz` files.** Rights holders use the mirror's [takedown process](https://mirror.hinamizawa.ai/docs/content-takedowns).
 - The mirror's full API is in its [OpenAPI document](https://mirror.hinamizawa.ai/api/v1/hinai/openapi.json), with human docs at [mirror.hinamizawa.ai/docs](https://mirror.hinamizawa.ai/docs).
 

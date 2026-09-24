@@ -451,6 +451,58 @@ describe("requestId, hint and forensicsUrl", () => {
     });
   });
 
+  const ids = { "x-hinai-request-id": "01GHI", "x-hinai-forensics": "https://f.example/01GHI" };
+
+  it("carries both on a download that breaks off mid-stream", async () => {
+    const { client } = stub(() => {
+      const broken = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(ZIP_HEAD);
+          controller.error(new Error("connection reset"));
+        },
+      });
+      return new Response(broken, { headers: ids });
+    });
+    expect(await failure(client.downloadSet(1))).toMatchObject({
+      code: "network",
+      requestId: "01GHI",
+      forensicsUrl: "https://f.example/01GHI",
+    });
+  });
+
+  it("carries both on a timeout while a body is read", async () => {
+    const { client } = stub((_url, init) => new Response(stalled(init).body, { headers: ids }), {
+      timeoutMs: 20,
+    });
+    expect(await failure(client.getAvailability(1))).toMatchObject({
+      code: "timeout",
+      status: null,
+      requestId: "01GHI",
+      forensicsUrl: "https://f.example/01GHI",
+    });
+  });
+
+  it("carries both on a timeout while an error body is read", async () => {
+    const { client } = stub(
+      (_url, init) => new Response(stalled(init).body, { status: 503, headers: ids }),
+      { timeoutMs: 20 },
+    );
+    expect(await failure(client.downloadSet(1))).toMatchObject({
+      code: "timeout",
+      requestId: "01GHI",
+      forensicsUrl: "https://f.example/01GHI",
+    });
+  });
+
+  it("has neither on a timeout before any response", async () => {
+    const { client } = stub(hang, { timeoutMs: 20 });
+    expect(await failure(client.getBeatmaps([1]))).toMatchObject({
+      code: "timeout",
+      requestId: null,
+      forensicsUrl: null,
+    });
+  });
+
   it("is null when the mirror sent neither", () => {
     expect(new HinaiError("x", "y")).toMatchObject({
       requestId: null,

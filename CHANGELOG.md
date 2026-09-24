@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- A download that breaks off mid-stream, and a timeout while a response body is read, now keep the response's `requestId` and `forensicsUrl` instead of `null`.
+
 ## [0.1.0] - 2026-09-23
 
 ### Added

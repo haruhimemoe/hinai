@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-25
+
+### Changed
+
+- Depends on `@haruhimemoe/osu` 0.2.0. If your app imports `@haruhimemoe/osu` directly, move it to 0.2.x.
+
 ### Fixed
 
 - A download that breaks off mid-stream, and a timeout while a response body is read, now keep the response's `requestId` and `forensicsUrl` instead of `null`.
@@ -19,5 +25,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `HinaiError` with a `code`, `retryable`, `retryAfterMs`, the mirror's `hint`, `requestId` and `forensicsUrl`.
 - `backoffDelayMs` and `parseRetryAfter` for retry loops.
 
-[unreleased]: https://github.com/haruhimemoe/hinai/compare/07a38ad40f9bb652940badf2fc456877c1443b56...HEAD
+[unreleased]: https://github.com/haruhimemoe/hinai/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/haruhimemoe/hinai/compare/07a38ad40f9bb652940badf2fc456877c1443b56...v0.2.0
 [0.1.0]: https://github.com/haruhimemoe/hinai/tree/07a38ad40f9bb652940badf2fc456877c1443b56

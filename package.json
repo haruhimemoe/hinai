@@ -1,6 +1,6 @@
 {
   "name": "@haruhimemoe/hinai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Client for the hinai osu! beatmap mirror (mirror.hinamizawa.ai): difficulty metadata as @haruhimemoe/osu BeatmapMeta, set availability, and streamed .osz downloads with progress, abort and retry hints. Works in browsers and on servers.",
   "keywords": [
     "osu",

@@ -31,6 +31,8 @@
 - [hinai mirror OpenAPI](https://mirror.hinamizawa.ai/api/v1/hinai/openapi.json): the mirror's full API contract
 - [hinai mirror llms.txt](https://mirror.hinamizawa.ai/llms.txt): the mirror's guide for LLMs
 - [haruhime.moe](https://www.haruhime.moe): the osu! tournament tools that use this client
+- [packs](https://packs.haruhime.moe): osu! beatmap packs for tournament hosts; uses this client
+- [pools](https://pools.haruhime.moe): osu! mappools for tournament hosts, in beta; uses this client
 
 ## Optional
 

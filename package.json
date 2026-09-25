@@ -67,6 +67,6 @@
     "zod": "4.6.5"
   },
   "dependencies": {
-    "@haruhimemoe/osu": "^0.1.0"
+    "@haruhimemoe/osu": "^0.2.0"
   }
 }

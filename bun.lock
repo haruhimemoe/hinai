@@ -5,7 +5,7 @@
     "": {
       "name": "@haruhimemoe/hinai",
       "dependencies": {
-        "@haruhimemoe/osu": "^0.1.0",
+        "@haruhimemoe/osu": "^0.2.0",
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.14",
@@ -51,7 +51,7 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.14", "", { "os": "win32", "cpu": "x64" }, "sha512-oJWmBhoHsnhUKIke+0gXDX0mltJrWHA1UyHsrTlXwX0TL64ilVZAo+TYZm97baecV0esBdpzy3k96q+09JaZUQ=="],
 
-    "@haruhimemoe/osu": ["@haruhimemoe/osu@0.1.0", "", { "peerDependencies": { "zod": "^4.0.16" } }, "sha512-SAprNNSYhvexQRVHFZkG1ELHrxWq28jaV+hsfRIOynTCOx63CQRFkokQoEhC8SZFwNC0B8sKJIY25DIgr5+vSA=="],
+    "@haruhimemoe/osu": ["@haruhimemoe/osu@0.2.0", "", { "peerDependencies": { "zod": "^4.0.16" } }, "sha512-m7H/a2msQRteu+L4oSmte3VvQRzu2PgncGBh2/dbtTcpzPNg7Qq8YzJir/UiWHHesF1ppfGgK5P4Mmxb2mWGZA=="],
 
     "@inquirer/ansi": ["@inquirer/ansi@2.0.8", "", {}, "sha512-WpQM+Ti6Z40EFwwt+uL2p4UabT+W179zHp6HhLVOzfbwnVn05IPO/eXIZXGNqcT1jbQ15SujNLzQ39k4QPPxBQ=="],
 

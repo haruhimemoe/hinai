@@ -18,7 +18,7 @@ npm install @haruhimemoe/hinai zod
 bun add @haruhimemoe/hinai zod
 ```
 
-`zod` (4.0.16 or later in 4.x) is a peer dependency. `@haruhimemoe/osu` installs with it; only its beatmap shapes (`@haruhimemoe/osu/shapes`) are used, not its API client. If your app imports `@haruhimemoe/osu` too, keep it on a matching version (0.1.x for this release), so there's one copy and one `BeatmapMeta` type.
+`zod` (4.0.16 or later in 4.x) is a peer dependency. `@haruhimemoe/osu` installs with it; only its beatmap shapes (`@haruhimemoe/osu/shapes`) are used, not its API client. If your app imports `@haruhimemoe/osu` too, keep it on a matching version (0.2.x for this release), so there's one copy and one `BeatmapMeta` type.
 
 ## Usage
 
@@ -197,7 +197,7 @@ A `HinaiError` has:
 - **Node:** 22.12 or later on servers.
 - **Browsers and workers:** Safari 17.4+, Chrome 120+, or Firefox 124+ (the floor is `AbortSignal.any` and `URL.canParse`; older engines throw a plain `TypeError` instead of a `HinaiError`).
 - **Module format:** ES modules, with TypeScript types included.
-- **Dependencies:** `zod` ^4.0.16 (peer) and `@haruhimemoe/osu` ^0.1.0.
+- **Dependencies:** `zod` ^4.0.16 (peer) and `@haruhimemoe/osu` ^0.2.0.
 
 ## License
 

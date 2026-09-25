@@ -1,3 +1,5 @@
+<p align="center"><a href="https://github.com/haruhimemoe/hinai"><picture><source media="(prefers-color-scheme: light)" srcset="https://www.haruhime.moe/brand/repos/hinai-banner-on-light.svg"><img alt="@haruhimemoe/hinai" src="https://www.haruhime.moe/brand/repos/hinai-banner.svg" width="640"></picture></a></p>
+
 # @haruhimemoe/hinai
 
 A client for the [hinai beatmap mirror](https://mirror.hinamizawa.ai) (mirror.hinamizawa.ai), used by the haruhime.moe tools:

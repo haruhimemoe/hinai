@@ -207,4 +207,4 @@ MIT. See [LICENSE](LICENSE). Not affiliated with the hinai mirror, osu! or ppy P
 
 ---
 
-See [CHANGELOG.md](CHANGELOG.md) for release history and [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute.
+See [CHANGELOG.md](CHANGELOG.md) for release history and [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. Bring questions and feedback to the haruhime.moe [Discord server](https://discord.gg/bKy9kjMV4y).

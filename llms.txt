@@ -30,7 +30,7 @@
 - [hinai mirror docs](https://mirror.hinamizawa.ai/docs): the mirror's own documentation
 - [hinai mirror OpenAPI](https://mirror.hinamizawa.ai/api/v1/hinai/openapi.json): the mirror's full API contract
 - [hinai mirror llms.txt](https://mirror.hinamizawa.ai/llms.txt): the mirror's guide for LLMs
-- [haruhime.moe](https://haruhime.moe): the osu! tournament tools that use this client
+- [haruhime.moe](https://www.haruhime.moe): the osu! tournament tools that use this client
 
 ## Optional
 

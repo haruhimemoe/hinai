@@ -10,8 +10,7 @@
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { createHinaiClient } from "../src/index.js";
-import unknown from "./fixtures/availability-unknown.json" with { type: "json" };
-import { HINAI_AVAILABILITY_URL } from "./helpers/hinai-downloads.js";
+import { HINAI_AVAILABILITY_URL, hinaiUnknownSetHandler } from "../src/testing/index.js";
 import { setupHinaiServer } from "./helpers/hinai-server.js";
 
 const server = setupHinaiServer();
@@ -53,7 +52,7 @@ describe("getAvailability", () => {
   });
 
   it("turns the recorded 404 into a non-retryable not_found", async () => {
-    server.use(http.get(HINAI_AVAILABILITY_URL, () => HttpResponse.json(unknown, { status: 404 })));
+    server.use(hinaiUnknownSetHandler);
     await expect(client.getAvailability(999999999)).rejects.toMatchObject({
       name: "HinaiError",
       code: "not_found",

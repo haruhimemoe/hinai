@@ -9,7 +9,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHinaiClient, setDownloadUrl } from "../src/index.js";
-import batch from "./fixtures/beatmaps-batch.json" with { type: "json" };
+import { recordedBeatmaps as batch } from "../src/testing/index.js";
 import { stub, zip } from "./helpers/stub-fetch.js";
 
 describe("base URLs", () => {

@@ -100,7 +100,7 @@ Every option, and every method option, also accepts `undefined`, which means "us
 
 ## API
 
-Everything below is exported from `@haruhimemoe/hinai`, except `getBeatmaps`, `getAvailability` and `downloadSet`, which are methods on the client.
+Everything below is exported from `@haruhimemoe/hinai`, except `getBeatmaps`, `getAvailability` and `downloadSet`, which are methods on the client. The msw mocks for tests are in [Testing](#testing).
 
 **Client**
 
@@ -186,6 +186,32 @@ A `HinaiError` has:
 | `http_error` | Another error status, without the mirror's error body | 5xx and 429 only |
 | anything else | The mirror's own code (e.g. `upstream_relay_shed`), with its `error` as the message | as the mirror says, else 5xx and 429 only |
 
+## Testing
+
+`@haruhimemoe/hinai/testing` mocks the mirror for your app's tests with [msw](https://mswjs.io) 2 (an optional peer: install it yourself). These are the handlers and recorded answers this package tests itself with, so your mocks change when the client does.
+
+```ts
+import { hinaiHandlers, hinaiUnknownSetHandler } from "@haruhimemoe/hinai/testing";
+import { setupServer } from "msw/node";
+
+const server = setupServer(...hinaiHandlers);
+// In a test: availability for any set now rejects with not_found.
+server.use(hinaiUnknownSetHandler);
+```
+
+| Export | Description |
+| --- | --- |
+| `hinaiHandlers` | Every endpoint the client calls: `hinaiBatchHandler` and `hinaiDownloadHandlers`. |
+| `hinaiBatchHandler` | Metadata from `recordedBeatmaps`: the rows asked for, unknown ids left out, as the mirror does. |
+| `hinaiDownloadHandlers` | `hinaiAvailabilityHandler` (downloadable, for any set) and `hinaiDownloadHandler` (`fakeOsz(setId)` with a `content-length`). |
+| `hinaiUnknownSetHandler` | Availability answered with the recorded 404 for a set no source knows. |
+| `HINAI_BATCH_URL`, `HINAI_AVAILABILITY_URL`, `HINAI_DOWNLOAD_URL` | The endpoints on the default mirror, as msw paths (`:setId`), for your own `http.get` overrides. |
+| `fakeOsz(setId)` | A small valid zip (`Uint8Array`) holding one stand-in `<setId>.osu`, the same bytes on every call. Real `.osz` files are copyrighted. |
+| `recordedBeatmaps` | The mirror's answer for difficulties 129891 (FREEDOM DiVE [FOUR DIMENSIONS]), 2116202 and 1872396, as `RecordedBeatmapRow[]` (`{ id: number }` plus the mirror's other fields). |
+| `recordedAvailability`, `recordedUnknownSet` | The mirror's availability answer for set 39804, and its 404 body for an unknown set. |
+
+The handlers answer on `https://mirror.hinamizawa.ai` only; for another `baseUrl`, write your own with the recorded answers and `fakeOsz`.
+
 ## Etiquette
 
 - **Downloads are limited to 1000 requests a minute per IP.** JSON endpoints aren't metered. Download one or two sets at a time, as the mirror asks, cache what you downloaded, and honor `Retry-After`.
@@ -199,7 +225,7 @@ A `HinaiError` has:
 - **Node:** 22.12 or later on servers.
 - **Browsers and workers:** Safari 17.4+, Chrome 120+, or Firefox 124+ (the floor is `AbortSignal.any` and `URL.canParse`; older engines throw a plain `TypeError` instead of a `HinaiError`).
 - **Module format:** ES modules, with TypeScript types included.
-- **Dependencies:** `zod` ^4.0.16 (peer) and `@haruhimemoe/osu` ^0.2.0.
+- **Dependencies:** `zod` ^4.0.16 (peer) and `@haruhimemoe/osu` ^0.2.0. `msw` ^2.0.0 is an optional peer, needed only for `@haruhimemoe/hinai/testing`.
 
 ## License
 

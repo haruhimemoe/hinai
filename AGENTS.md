@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`@haruhimemoe/hinai`: a client for the hinai beatmap mirror (mirror.hinamizawa.ai). Difficulty metadata (as `BeatmapMeta` from `@haruhimemoe/osu/shapes`), set availability, and `.osz` downloads. One npm package with one entry point; runs in browsers, workers and on servers.
+`@haruhimemoe/hinai`: a client for the hinai beatmap mirror (mirror.hinamizawa.ai). Difficulty metadata (as `BeatmapMeta` from `@haruhimemoe/osu/shapes`), set availability, and `.osz` downloads. One npm package with two entry points: `@haruhimemoe/hinai` (runs in browsers, workers and on servers) and `@haruhimemoe/hinai/testing` (msw mocks of the mirror for apps' tests).
 
 ## Layout
 
@@ -11,10 +11,11 @@
 - `src/archive.ts`: reading a download into an `.osz` `Blob` with progress and the zip check (internal), and `OSZ_MIME`.
 - `src/errors.ts`: `HinaiError` and `HinaiErrorCode`.
 - `src/retry.ts`: `parseRetryAfter`, `backoffDelayMs`, `MAX_RETRY_DELAY_MS`.
-- `src/schemas.ts`: zod schemas for the mirror's error body and availability response. Internal, not exported.
-- `tests/`: Vitest. `tests/helpers/` holds the msw handlers for the mirror, `tests/helpers/stub-fetch.ts` the stub-fetch client for tests that don't need msw, `tests/fixtures/` the JSON responses. Tests are split by subject (`beatmaps`, `availability`, `downloads`, `timeouts`, `aborts`, `errors`, `request-ids`, `inputs`, `retry`); `tests/exports.test.ts` pins the runtime and type exports.
-- `scripts/smoke.mjs`: imports the built `dist/` and runs it against a stub fetch (`bun run test:dist`).
-- `scripts/check-consumer.mjs`: packs the package into a throwaway project with a given zod version, then typechecks a strict consumer and runs it (`bun run check:consumer <zod version>`).
+- `src/schemas.ts`: zod schemas for the mirror's error body, metadata batch and availability response. Internal, not exported.
+- `src/testing/`: the `/testing` entry. `index.ts` holds the msw handlers and endpoint paths, `fixtures.ts` the answers recorded from the mirror, `osz.ts` `fakeOsz` (a hand-written stored zip, so the entry needs no zip library). msw is an optional peer; only this entry imports it.
+- `tests/`: Vitest. `tests/helpers/hinai-server.ts` is an msw server on the `/testing` handlers (the repo tests with what apps use), `tests/helpers/stub-fetch.ts` the stub-fetch client for tests that don't need msw. Tests are split by subject (`beatmaps`, `availability`, `downloads`, `timeouts`, `aborts`, `errors`, `request-ids`, `inputs`, `retry`, `testing`); `tests/exports.test.ts` pins the runtime and type exports of both entry points.
+- `scripts/smoke.mjs`: imports the built `dist/` (both entries) and runs it against a stub fetch fed by the testing fixtures (`bun run test:dist`).
+- `scripts/check-consumer.mjs`: packs the package into a throwaway project with a given zod version, then typechecks a strict consumer of both entries (with msw installed) and runs it (`bun run check:consumer <zod version>`).
 - `llms.txt`: an index of the docs for LLMs. It lives in the repo only; don't add it to `files` in `package.json`.
 
 ## Rules
@@ -25,7 +26,7 @@
 - **Every failure is a `HinaiError`** with a code and an honest `retryable`, except aborts, which reject with the signal's reason (check the caller's signal wherever a body is read), and errors thrown by the caller's `onProgress`, which pass through as they are. Once a response has arrived, every `HinaiError` carries its `requestId` and `forensicsUrl`, timeouts and broken-off downloads included. Bad arguments (set ids, `baseUrl`, `timeoutMs`, a server's `userAgent`) throw `RangeError` before any request, and an already-aborted signal rejects before any request too.
 - **Timeouts:** metadata and availability requests are timed end to end (`timeoutMs`, default `HINAI_TIMEOUT_MS`). Downloads are timed only until the headers arrive; never put a total timeout on a download.
 - **No orchestration.** Queues, caches, concurrency and app wording belong in apps. This package does one request well.
-- **Tests never call the mirror.** msw and stub fetches only; `.osz` fixtures are synthetic zips (real ones are copyrighted).
+- **Tests never call the mirror.** msw and stub fetches only; `.osz` fixtures are synthetic zips (real ones are copyrighted). When the mirror's answers change, re-record them in `src/testing/fixtures.ts`: apps mock the mirror with them too.
 - **Public API is pinned** by `tests/exports.test.ts`: the runtime exports by snapshot, the type exports by `bun run typecheck`. Adding or removing an export is a semver decision: note it in `CHANGELOG.md`.
 - **Docs match the code.** `README.md` documents every export, option, default and error code. Change it in the same commit as the code, and update `llms.txt` when a README section is added, renamed or removed.
 - **Changelog:** user-visible changes get a line under `## [Unreleased]` in `CHANGELOG.md` (Keep a Changelog 1.1.0). Never rewrite a released entry.

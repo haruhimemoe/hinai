@@ -10,7 +10,8 @@
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { createHinaiClient, HinaiError } from "../src/index.js";
-import { HINAI_BATCH_URL, setupHinaiServer } from "./helpers/hinai-server.js";
+import { HINAI_BATCH_URL } from "../src/testing/index.js";
+import { setupHinaiServer } from "./helpers/hinai-server.js";
 
 const server = setupHinaiServer();
 const client = createHinaiClient();

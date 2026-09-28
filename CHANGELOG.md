@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `@haruhimemoe/hinai/testing`: msw handlers that answer like the mirror (`hinaiHandlers`, `hinaiBatchHandler`, `hinaiDownloadHandlers`, `hinaiUnknownSetHandler`), the endpoint paths, the answers recorded from the mirror (`recordedBeatmaps`, `recordedAvailability`, `recordedUnknownSet`) and `fakeOsz(setId)`. Apps can mock the mirror with what this package tests itself with, instead of copies that drift. `msw` ^2.0.0 is an optional peer dependency, needed only for this entry.
+
 ### Fixed
 
 - `createHinaiClient` throws a `RangeError` for a `userAgent` that isn't a valid header value (an emoji or a line break, say). Before, every request failed as a retryable `network` error.

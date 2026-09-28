@@ -24,6 +24,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -54,7 +58,13 @@
     "check:consumer": "bun run build && node scripts/check-consumer.mjs"
   },
   "peerDependencies": {
+    "msw": "^2.0.0",
     "zod": "^4.0.16"
+  },
+  "peerDependenciesMeta": {
+    "msw": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

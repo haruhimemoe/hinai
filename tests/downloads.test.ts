@@ -11,7 +11,7 @@
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { createHinaiClient, HinaiError, OSZ_MIME, setDownloadUrl } from "../src/index.js";
-import { fakeOsz, HINAI_DOWNLOAD_URL } from "./helpers/hinai-downloads.js";
+import { fakeOsz, HINAI_DOWNLOAD_URL } from "../src/testing/index.js";
 import { setupHinaiServer } from "./helpers/hinai-server.js";
 import { failure, stalled, stub, ZIP_HEAD, zip } from "./helpers/stub-fetch.js";
 

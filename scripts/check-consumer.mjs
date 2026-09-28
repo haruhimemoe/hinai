@@ -2,13 +2,14 @@
  * @file scripts/check-consumer.mjs
  * @desc Installs the packed package with a given zod version into a throwaway project, then
  *       typechecks a consumer strictly (no skipLibCheck, so broken .d.ts can't hide as `any`) and
- *       runs it. Proves the zod peer range's floor, and that options accept an explicit undefined
- *       under exactOptionalPropertyTypes. Usage: bun run check:consumer <zod version> [local
+ *       runs it. Proves the zod peer range's floor, that options accept an explicit undefined
+ *       under exactOptionalPropertyTypes, and that the /testing entry resolves and typechecks
+ *       with msw (its optional peer) installed. Usage: bun run check:consumer <zod version> [local
  *       package dirs...] (builds first). Needs the npm registry; any local package dirs (say, a
  *       copy of @haruhimemoe/osu) are packed and installed instead of their npm versions.
  * @author David @dvhsh (https://dvh.sh)
  * @created Wed Sep 23, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
 import { execFileSync } from "node:child_process";
@@ -34,6 +35,7 @@ import {
   HinaiError,
   setDownloadUrl,
 } from "@haruhimemoe/hinai";
+import { fakeOsz, hinaiHandlers, recordedBeatmaps } from "@haruhimemoe/hinai/testing";
 
 const row = {
   id: 75,
@@ -77,13 +79,31 @@ const osz = await loose.downloadSet(1, {
   video: undefined,
 });
 if (osz.size !== 4) throw new Error("download");
+
+// The testing entry: its fixtures feed a stub fetch, and fakeOsz passes the client's zip check.
+const recorded = createHinaiClient({
+  fetch: async (input) =>
+    String(input).includes("/d/") ? new Response(fakeOsz(9)) : Response.json(recordedBeatmaps),
+});
+const ids = recordedBeatmaps.map((row) => row.id);
+if ((await recorded.getBeatmaps(ids)).found.size !== ids.length) throw new Error("fixtures");
+if ((await recorded.downloadSet(9)).size !== fakeOsz(9).length) throw new Error("fakeOsz");
+if (hinaiHandlers.length !== 3) throw new Error("handlers");
 console.log("consumer: ok");
 `;
 
 try {
   writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: "module", private: true }));
   const tarballs = [...locals.map((local) => pack(path.resolve(local))), pack(root)];
-  run("npm", ["install", "--silent", "--no-audit", "--no-fund", ...tarballs, `zod@${zod}`]);
+  run("npm", [
+    "install",
+    "--silent",
+    "--no-audit",
+    "--no-fund",
+    ...tarballs,
+    `zod@${zod}`,
+    "msw@2",
+  ]);
   writeFileSync(
     path.join(dir, "tsconfig.json"),
     JSON.stringify({

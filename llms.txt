@@ -1,6 +1,6 @@
 # @haruhimemoe/hinai
 
-> A TypeScript client for the hinai osu! beatmap mirror (mirror.hinamizawa.ai), published on npm as @haruhimemoe/hinai. `createHinaiClient()` returns `getBeatmaps(ids)` (difficulty metadata as `BeatmapMeta` from @haruhimemoe/osu/shapes, sent 100 ids per request, unknown or invalid ids returned in `missing`), `getAvailability(setId)` (whether a beatmapset can be downloaded) and `downloadSet(setId)` (the `.osz` as a Blob, no video by default, with progress, abort and a zip signature check). A failed request rejects with a `HinaiError` with a `code`, `retryable`, the mirror's Retry-After, its hint, a request id and a forensics URL. The exceptions: aborts reject with the signal's reason, bad arguments (a set id that isn't a positive integer, a bad `baseUrl`, `timeoutMs` or `userAgent`) throw a RangeError before any request, and an error thrown by `onProgress` passes through as it is. No auth, and CORS is open, so it runs in browsers, workers and on Node 22.12+. zod ^4.0.16 is a peer dependency. MIT licensed.
+> A TypeScript client for the hinai osu! beatmap mirror (mirror.hinamizawa.ai), published on npm as @haruhimemoe/hinai. `createHinaiClient()` returns `getBeatmaps(ids)` (difficulty metadata as `BeatmapMeta` from @haruhimemoe/osu/shapes, sent 100 ids per request, unknown or invalid ids returned in `missing`), `getAvailability(setId)` (whether a beatmapset can be downloaded) and `downloadSet(setId)` (the `.osz` as a Blob, no video by default, with progress, abort and a zip signature check). A failed request rejects with a `HinaiError` with a `code`, `retryable`, the mirror's Retry-After, its hint, a request id and a forensics URL. The exceptions: aborts reject with the signal's reason, bad arguments (a set id that isn't a positive integer, a bad `baseUrl`, `timeoutMs` or `userAgent`) throw a RangeError before any request, and an error thrown by `onProgress` passes through as it is. No auth, and CORS is open, so it runs in browsers, workers and on Node 22.12+. zod ^4.0.16 is a peer dependency. `@haruhimemoe/hinai/testing` exports msw handlers that mock the mirror (msw ^2 is an optional peer), the answers recorded from it, and `fakeOsz(setId)`, a small valid .osz. MIT licensed.
 
 ## Docs
 
@@ -15,6 +15,7 @@
 - [API](https://github.com/haruhimemoe/hinai#api): every export, with its signature and shape
 - [Retrying](https://github.com/haruhimemoe/hinai#retrying): a retry loop with `backoffDelayMs`
 - [Errors](https://github.com/haruhimemoe/hinai#errors): `HinaiError` fields and every error code, with whether to retry
+- [Testing](https://github.com/haruhimemoe/hinai#testing): `@haruhimemoe/hinai/testing`, msw handlers, recorded mirror answers and `fakeOsz` for apps' tests
 - [Etiquette](https://github.com/haruhimemoe/hinai#etiquette): the mirror's download limit, ids, debugging headers, takedowns
 - [Compatibility](https://github.com/haruhimemoe/hinai#compatibility): Node, browser and worker floors, module format, dependencies
 

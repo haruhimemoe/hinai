@@ -41,7 +41,24 @@ const isId = (id: number): boolean => Number.isSafeInteger(id) && id > 0;
 const checkSetId = (setId: number): void => {
   if (!isId(setId)) throw new RangeError("setId must be a positive integer.");
 };
-const trimSlashes = (url: string): string => url.replace(/\/+$/, "");
+
+/**
+ * The base URL without trailing slashes. Paths are appended to it as text, so a query, hash or
+ * credentials (which fetch refuses) would break every request: refuse them up front.
+ */
+const checkBaseUrl = (baseUrl: string): string => {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  const url = URL.canParse(trimmed) ? new URL(trimmed) : null;
+  if (
+    (url?.protocol !== "https:" && url?.protocol !== "http:") ||
+    /[?#]/.test(trimmed) ||
+    url.username ||
+    url.password
+  ) {
+    throw new RangeError("baseUrl must be an absolute http(s) URL, with no query, hash or login.");
+  }
+  return trimmed;
+};
 
 /**
  * @function setDownloadUrl
@@ -49,7 +66,8 @@ const trimSlashes = (url: string): string => url.replace(/\/+$/, "");
  * @param baseUrl {string} mirror origin
  * @param video {boolean} true for the archive with its video
  * @returns {string} the .osz URL (no-video unless asked)
- * @throws {RangeError} when setId isn't a positive integer
+ * @throws {RangeError} when setId isn't a positive integer, or baseUrl isn't an absolute http(s)
+ *         URL with no query, hash or credentials
  */
 export const setDownloadUrl = (
   setId: number,
@@ -57,22 +75,38 @@ export const setDownloadUrl = (
   video = false,
 ): string => {
   checkSetId(setId);
-  return `${trimSlashes(baseUrl)}/api/v1/hinai/d/${setId}${video ? "" : "?noVideo=true"}`;
+  return `${checkBaseUrl(baseUrl)}/api/v1/hinai/d/${setId}${video ? "" : "?noVideo=true"}`;
+};
+
+/**
+ * The User-Agent header to send, if any: only on servers (see HinaiClientOptions.userAgent), and
+ * only a value fetch will take, so a bad one fails here rather than as a retryable network error
+ * on every request.
+ */
+const userAgentHeaders = (userAgent: string | undefined): Record<string, string> | undefined => {
+  // Workers have no `document` either, and a non-safelisted header there forces a preflight too.
+  const inBrowser =
+    typeof document !== "undefined" ||
+    (typeof self !== "undefined" && typeof window === "undefined" && "importScripts" in self);
+  if (!userAgent || inBrowser) return undefined;
+  try {
+    new Headers({ "User-Agent": userAgent });
+  } catch (cause) {
+    throw new RangeError("userAgent must be a valid header value.", { cause });
+  }
+  return { "User-Agent": userAgent };
 };
 
 /**
  * @function createHinaiClient
  * @param options {HinaiClientOptions} base URL, fetch, timeout, and (on servers) a User-Agent
  * @returns {{ getBeatmaps, getAvailability, downloadSet }} the client
- * @throws {RangeError} when baseUrl isn't an absolute http(s) URL, or timeoutMs isn't an integer
- *         from 1 to 2147483647
+ * @throws {RangeError} when baseUrl isn't an absolute http(s) URL with no query, hash or
+ *         credentials, timeoutMs isn't an integer from 1 to 2147483647, or userAgent (on a
+ *         server) isn't a valid header value
  */
 export const createHinaiClient = (options: HinaiClientOptions = {}) => {
-  const baseUrl = trimSlashes(options.baseUrl ?? HINAI_BASE_URL);
-  const protocol = URL.canParse(baseUrl) ? new URL(baseUrl).protocol : "";
-  if (protocol !== "https:" && protocol !== "http:") {
-    throw new RangeError("baseUrl must be an absolute http(s) URL.");
-  }
+  const baseUrl = checkBaseUrl(options.baseUrl ?? HINAI_BASE_URL);
   const timeoutMs = options.timeoutMs ?? HINAI_TIMEOUT_MS;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) {
     throw new RangeError(`timeoutMs must be an integer from 1 to ${MAX_TIMEOUT_MS}.`);
@@ -80,12 +114,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
   // Resolve globalThis.fetch per call so test interceptors installed later still apply.
   const doFetch =
     options.fetch ?? ((input: string | URL, init?: RequestInit) => globalThis.fetch(input, init));
-  // Workers have no `document` either, and a non-safelisted header there forces a preflight too.
-  const inBrowser =
-    typeof document !== "undefined" ||
-    (typeof self !== "undefined" && typeof window === "undefined" && "importScripts" in self);
-  const headers: Record<string, string> | undefined =
-    options.userAgent && !inBrowser ? { "User-Agent": options.userAgent } : undefined;
+  const headers = userAgentHeaders(options.userAgent);
 
   /** Starts a request's deadline, joined with the caller's signal. */
   const begin = (signal: AbortSignal | undefined): Attempt => {
@@ -155,6 +184,8 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
       ids: readonly number[],
       { signal }: BeatmapOptions = {},
     ): Promise<BeatmapLookup> {
+      // Even with nothing to send: an aborted lookup must not look finished.
+      signal?.throwIfAborted();
       const unique = [...new Set(ids)];
       const valid = unique.filter(isId);
       const wanted = new Set(valid);
@@ -192,6 +223,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
       { signal }: AvailabilityOptions = {},
     ): Promise<SetAvailability> {
       checkSetId(setId);
+      signal?.throwIfAborted();
       const { availability } = await getJson(
         `${baseUrl}/api/s/${setId}/availability`,
         hinaiAvailabilitySchema,
@@ -218,6 +250,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
       { signal, onProgress, video = false }: DownloadOptions = {},
     ): Promise<Blob> {
       const url = setDownloadUrl(setId, baseUrl, video);
+      signal?.throwIfAborted();
       const attempt = begin(signal);
       let response: Response;
       try {

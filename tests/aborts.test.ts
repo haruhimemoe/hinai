@@ -65,3 +65,31 @@ describe("aborts stay aborts", () => {
     expect(state.cancelled).toBe(true);
   });
 });
+
+describe("an already-aborted signal", () => {
+  const aborted = () => {
+    const controller = new AbortController();
+    const reason = new Error("gone");
+    controller.abort(reason);
+    return { signal: controller.signal, reason };
+  };
+
+  it.each([
+    ["an empty list", []],
+    ["no valid id", [-1]],
+    ["valid ids", [1]],
+  ])("rejects getBeatmaps with %s, and sends nothing", async (_name, ids) => {
+    const { client, calls } = stub(() => Response.json([]));
+    const { signal, reason } = aborted();
+    expect(await failure(client.getBeatmaps(ids, { signal }))).toBe(reason);
+    expect(calls).toEqual([]);
+  });
+
+  it("rejects getAvailability and downloadSet, and sends nothing", async () => {
+    const { client, calls } = stub(() => new Response(zip()));
+    const { signal, reason } = aborted();
+    expect(await failure(client.getAvailability(1, { signal }))).toBe(reason);
+    expect(await failure(client.downloadSet(1, { signal }))).toBe(reason);
+    expect(calls).toEqual([]);
+  });
+});

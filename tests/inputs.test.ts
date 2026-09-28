@@ -39,12 +39,27 @@ describe("base URLs", () => {
     );
   });
 
-  it.each(["mirror.example", "ftp://mirror.example", "", "javascript:alert(1)"])(
-    "refuses baseUrl %j",
-    (baseUrl) => {
-      expect(() => createHinaiClient({ baseUrl })).toThrow(RangeError);
-    },
-  );
+  it("keeps a path in baseUrl (a mirror behind a proxy prefix)", async () => {
+    const { client, calls } = stub(() => Response.json([]), { baseUrl: "https://p.test/hinai/" });
+    await client.getBeatmaps([1]);
+    expect(calls[0]?.url).toBe("https://p.test/hinai/api/v2/beatmaps?ids=1");
+  });
+
+  it.each([
+    "mirror.example",
+    "ftp://mirror.example",
+    "",
+    "javascript:alert(1)",
+    "javascript:alert(1)//",
+    "https://m.example/?k=1",
+    "https://m.example/?",
+    "https://m.example/#top",
+    "https://u:p@m.example",
+    "https://u@m.example",
+  ])("refuses baseUrl %j, in the client and in setDownloadUrl", (baseUrl) => {
+    expect(() => createHinaiClient({ baseUrl })).toThrow(RangeError);
+    expect(() => setDownloadUrl(1, baseUrl)).toThrow(RangeError);
+  });
 });
 
 describe("ids", () => {
@@ -106,6 +121,18 @@ describe("headers", () => {
       "pools (+https://x)",
       "pools (+https://x)",
     ]);
+  });
+
+  it.each(["mytool ✨ 1.0", "tool\r\nX-Evil: 1", "tool\n1.0"])(
+    "refuses userAgent %j, which fetch would refuse on every request",
+    (userAgent) => {
+      expect(() => createHinaiClient({ userAgent })).toThrow(RangeError);
+    },
+  );
+
+  it("doesn't check a userAgent it won't send (in a browser)", () => {
+    vi.stubGlobal("document", {});
+    expect(() => createHinaiClient({ userAgent: "mytool ✨" })).not.toThrow();
   });
 
   it("ignores userAgent in a browser, where it can't be set", async () => {

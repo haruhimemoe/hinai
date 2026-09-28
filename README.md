@@ -81,8 +81,8 @@ if (downloadable) {
 
 ### Aborts and bad arguments
 
-- Every method takes a `signal`. An abort rejects with the signal's reason (a `DOMException` named `AbortError`, unless you aborted with a reason of your own), not a `HinaiError`. An error thrown by your `onProgress` also rejects the call as it is.
-- `createHinaiClient` throws a `RangeError` for a bad `baseUrl` or `timeoutMs`, and `setDownloadUrl` for a bad set id.
+- Every method takes a `signal`. An abort rejects with the signal's reason (a `DOMException` named `AbortError`, unless you aborted with a reason of your own), not a `HinaiError`. A signal that's already aborted rejects at once, before any request, even when there's nothing to send (an empty id list). An error thrown by your `onProgress` also rejects the call as it is.
+- `createHinaiClient` throws a `RangeError` for a bad `baseUrl`, `timeoutMs` or `userAgent`, and `setDownloadUrl` for a bad set id or `baseUrl`.
 - `getAvailability` and `downloadSet` reject with a `RangeError`, before any request, for a set id that isn't a positive integer.
 
 ### Options
@@ -91,8 +91,8 @@ Options to `createHinaiClient`:
 
 | Option | Default | Notes |
 | --- | --- | --- |
-| `baseUrl` | `https://mirror.hinamizawa.ai` (`HINAI_BASE_URL`) | Absolute http(s) URL, else a `RangeError`. Trailing slashes are dropped. |
-| `userAgent` | none | Sent as `User-Agent`, on servers only. Ignored in a browser (where `document` exists) or a worker (`self` with `importScripts` and no `window`): pages and workers can't set it, and an extra header would force a CORS preflight. |
+| `baseUrl` | `https://mirror.hinamizawa.ai` (`HINAI_BASE_URL`) | Absolute http(s) URL with no query, hash or credentials, else a `RangeError`. A path is kept (a mirror behind a proxy prefix); trailing slashes are dropped. |
+| `userAgent` | none | Sent as `User-Agent`, on servers only. Ignored in a browser (where `document` exists) or a worker (`self` with `importScripts` and no `window`): pages and workers can't set it, and an extra header would force a CORS preflight. On a server it must be a valid header value (no line breaks, nothing outside Latin-1), else a `RangeError`. |
 | `timeoutMs` | `10_000` (`HINAI_TIMEOUT_MS`) | Per metadata or availability request, body included. For a download, only until the headers arrive (plus the error body on an error status). Must be an integer from 1 to 2147483647 (2^31 - 1: `setTimeout`'s own limit), else a `RangeError`. |
 | `fetch` | `globalThis.fetch` | For tests or a custom agent. Without it, `globalThis.fetch` is looked up on every request, so a fetch mock installed later still applies. |
 
@@ -109,7 +109,7 @@ Everything below is exported from `@haruhimemoe/hinai`, except `getBeatmaps`, `g
 | `createHinaiClient(options?)` | Builds the client: `getBeatmaps`, `getAvailability`, `downloadSet` (below). |
 | `HinaiClient` | Type of the object `createHinaiClient` returns. |
 | `HinaiClientOptions` | `baseUrl`, `fetch`, `userAgent`, `timeoutMs`. See [Options](#options). |
-| `setDownloadUrl(setId, baseUrl?, video?)` | The `.osz` URL for a set, without downloading it. No-video unless `video` is `true`. Throws `RangeError` for a bad `setId`. |
+| `setDownloadUrl(setId, baseUrl?, video?)` | The `.osz` URL for a set, without downloading it. No-video unless `video` is `true`. Throws `RangeError` for a bad `setId` or `baseUrl` (checked like the client's). |
 | `HINAI_BASE_URL` | Default `baseUrl`: `"https://mirror.hinamizawa.ai"`. |
 | `HINAI_TIMEOUT_MS` | Default `timeoutMs`: `10_000`. |
 | `HINAI_BATCH_LIMIT` | Ids per metadata request: `100`. `getBeatmaps` splits longer lists into requests of this size. |
@@ -174,7 +174,7 @@ A `HinaiError` has:
 | `retryAfterMs` | The mirror's `Retry-After` in ms (at most 60 s) on an error status other than 404, else `null`. |
 | `hint` | The mirror's `hint` from its error body, else `null`. |
 | `requestId` | The response's `x-hinai-request-id`, else `null`. It is `null` when no response arrived (a `network` failure or a `timeout` before the headers). |
-| `forensicsUrl` | The response's `x-hinai-forensics`, else `null`, as for `requestId`. |
+| `forensicsUrl` | The response's `x-hinai-forensics` when it's an absolute http(s) URL, else `null` (as for `requestId`), so it's safe to show as a link. |
 | `cause` | The underlying error when there is one (for example fetch's `TypeError` or a JSON `SyntaxError`). |
 
 | `code` | Meaning | Retry? |

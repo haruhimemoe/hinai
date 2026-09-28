@@ -42,6 +42,16 @@ describe("requestId, hint and forensicsUrl", () => {
     });
   });
 
+  it.each(["javascript:alert(1)", "data:text/html,hi", "/api/v1/hinai/f/01ABC", "not a url"])(
+    "drops a forensics header that isn't an absolute http(s) URL: %j",
+    async (forensics) => {
+      const { client } = stub(
+        () => new Response(null, { status: 503, headers: { "x-hinai-forensics": forensics } }),
+      );
+      expect(await failure(client.getBeatmaps([1]))).toMatchObject({ forensicsUrl: null });
+    },
+  );
+
   it("carries the request id on a 404", async () => {
     const { client } = stub(
       () => new Response(null, { status: 404, headers: { "x-hinai-request-id": "01DEF" } }),

@@ -31,15 +31,22 @@ type JsonRead = { ok: true; body: unknown } | { ok: false; cause: unknown };
 
 const UNREADABLE_MESSAGE = "The beatmap mirror sent a response we couldn't read.";
 
+const protocolOf = (url: string): string => (URL.canParse(url) ? new URL(url).protocol : "");
+
 /**
  * @function responseIds
  * @param response {Response | undefined} the mirror's response, when one arrived
- * @returns {ResponseIds} its x-hinai-request-id and x-hinai-forensics headers, else nulls
+ * @returns {ResponseIds} its x-hinai-request-id and x-hinai-forensics headers, else nulls (and
+ *          null for a forensics value that isn't an absolute http(s) URL)
  */
-export const responseIds = (response?: Response): ResponseIds => ({
-  requestId: response?.headers.get("x-hinai-request-id") ?? null,
-  forensicsUrl: response?.headers.get("x-hinai-forensics") ?? null,
-});
+export const responseIds = (response?: Response): ResponseIds => {
+  const forensics = response?.headers.get("x-hinai-forensics") ?? null;
+  return {
+    requestId: response?.headers.get("x-hinai-request-id") ?? null,
+    // Apps show this link to users: keep it only when it's http(s), never javascript: and the like.
+    forensicsUrl: forensics !== null && /^https?:$/.test(protocolOf(forensics)) ? forensics : null,
+  };
+};
 
 /**
  * @function readJson

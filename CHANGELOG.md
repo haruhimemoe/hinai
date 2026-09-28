@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- `createHinaiClient` throws a `RangeError` for a `userAgent` that isn't a valid header value (an emoji or a line break, say). Before, every request failed as a retryable `network` error.
+- `createHinaiClient` and `setDownloadUrl` refuse a `baseUrl` with a query, hash or credentials with a `RangeError`. Before, they built broken request URLs, or every request failed as a retryable `network` error.
+- A signal that's already aborted rejects every method at once, before any request. Before, `getBeatmaps` resolved when it had nothing to send (an empty list, or no valid id).
+
+### Security
+
+- `setDownloadUrl` checks `baseUrl` like `createHinaiClient` does. Before, `setDownloadUrl(1, "javascript:alert(1)//")` returned a `javascript:` URL.
+- `forensicsUrl` is `null` unless the mirror's `x-hinai-forensics` header is an absolute http(s) URL, so a `javascript:` value can't reach an app's link.
+
 ## [0.2.0] - 2026-09-25
 
 ### Changed

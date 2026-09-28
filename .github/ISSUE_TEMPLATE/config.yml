@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and feedback
+    url: https://discord.gg/bKy9kjMV4y
+    about: Ask on the haruhime.moe Discord server.
+  - name: Report a vulnerability
+    url: https://github.com/haruhimemoe/hinai/security/advisories/new
+    about: Report security problems privately, never in a public issue (see SECURITY.md).
+  - name: Problems with the mirror itself
+    url: https://mirror.hinamizawa.ai/docs
+    about: This repository is the client only.

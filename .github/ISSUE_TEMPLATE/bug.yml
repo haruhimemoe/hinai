@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in @haruhimemoe/hinai is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you called, what you expected, what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Code to reproduce
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      placeholder: Node 24.1, Chrome 140, a Cloudflare worker...
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: The HinaiError
+      description: Its code, status, message, requestId and forensicsUrl, if a request failed.
+      render: text

@@ -3,9 +3,10 @@
  * @desc Retry timing for mirror requests: Retry-After parsing and exponential backoff.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
+/** The cap on parseRetryAfter's result and on backoffDelayMs: 60 s. */
 export const MAX_RETRY_DELAY_MS = 60_000;
 
 /** An HTTP date in the IMF-fixdate form servers send (RFC 9110): Tue, 22 Sep 2026 12:00:03 GMT. */

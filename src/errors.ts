@@ -5,7 +5,7 @@
  *       request id and forensics URL to quote when reporting a problem.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
 /** The client's own codes; anything else is the mirror's own (e.g. `too_many_ids`). */
@@ -17,9 +17,16 @@ export type HinaiErrorCode =
   | "http_error"
   | (string & {});
 
+/**
+ * How every mirror request fails, except aborts (which reject with the signal's reason) and bad
+ * arguments (a RangeError). Branch on `code`; retry only when `retryable`.
+ */
 export class HinaiError extends Error {
+  /** What went wrong: the client's own code, or the mirror's. */
   readonly code: HinaiErrorCode;
+  /** The HTTP status, or null when no response arrived (network, timeout before the headers). */
   readonly status: number | null;
+  /** Whether trying again can help. */
   readonly retryable: boolean;
   /** How long the mirror asked us to wait (Retry-After), when it said. */
   readonly retryAfterMs: number | null;

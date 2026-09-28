@@ -5,9 +5,11 @@
  *       errors that say whether and when to retry.
  * @author David @dvhsh (https://dvh.sh)
  * @created Wed Sep 23, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
+export { OSZ_MIME } from "./archive.js";
 export * from "./client.js";
 export * from "./errors.js";
 export * from "./retry.js";
+export type * from "./types.js";

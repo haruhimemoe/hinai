@@ -1,67 +1,47 @@
 /**
  * @file src/client.ts
  * @desc Client for the hinai beatmap mirror (mirror.hinamizawa.ai): difficulty metadata in
- *       osu!'s shape (mapped to BeatmapMeta), a set's availability, and streamed .osz downloads
- *       with progress, abort, and a zip-signature check on the first bytes. No auth; CORS is open,
- *       so it runs in browsers and workers, which send no custom headers (no preflight). On a
- *       server, pass userAgent. Metadata and availability requests give up after timeoutMs;
- *       downloads only wait that long for the headers, then stream for as long as the caller's
- *       signal allows.
+ *       osu!'s shape (mapped to BeatmapMeta), a set's availability, and streamed .osz downloads.
+ *       No auth; CORS is open, so it runs in browsers and workers, which send no custom headers
+ *       (no preflight). On a server, pass userAgent. Metadata and availability requests give up
+ *       after timeoutMs; downloads only wait that long for the headers, then stream for as long
+ *       as the caller's signal allows.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
 import { type BeatmapMeta, osuBeatmapRowSchema, toBeatmapMeta } from "@haruhimemoe/osu/shapes";
+import type { z } from "zod";
+import { readArchive } from "./archive.js";
 import { HinaiError } from "./errors.js";
-import { parseRetryAfter } from "./retry.js";
-import { hinaiAvailabilitySchema, hinaiErrorSchema } from "./schemas.js";
+import { type Attempt, errorFor, readJson, responseIds, unreadable } from "./response.js";
+import { hinaiAvailabilitySchema, hinaiBatchSchema } from "./schemas.js";
+import type {
+  AvailabilityOptions,
+  BeatmapLookup,
+  BeatmapOptions,
+  DownloadOptions,
+  HinaiClientOptions,
+  SetAvailability,
+} from "./types.js";
 
+/** Default baseUrl: the public hinai mirror. */
 export const HINAI_BASE_URL = "https://mirror.hinamizawa.ai";
 /** The mirror answers at most this many ids per metadata call. */
 export const HINAI_BATCH_LIMIT = 100;
 /** Default time a metadata or availability request, or a download's headers, may take. */
 export const HINAI_TIMEOUT_MS = 10_000;
 
-export type BeatmapLookup = { found: Map<number, BeatmapMeta>; missing: number[] };
-export type BeatmapOptions = {
-  /** Cancels the lookup; it then rejects with the signal's reason. */
-  signal?: AbortSignal | undefined;
-};
-
-export const OSZ_MIME = "application/x-osu-beatmap-archive";
-
-export type SetAvailability = { downloadable: boolean; reason: string | null };
-export type AvailabilityOptions = {
-  /** Cancels the request; it then rejects with the signal's reason. */
-  signal?: AbortSignal | undefined;
-};
-export type DownloadProgress = { loaded: number; total: number | null };
-export type DownloadOptions = {
-  /** Cancels the download at any point; it then rejects with the signal's reason. */
-  signal?: AbortSignal | undefined;
-  /** Called per chunk once the archive is known to be a zip. What it throws rejects the call. */
-  onProgress?: ((progress: DownloadProgress) => void) | undefined;
-  /** Ask for the archive with its video. Default: without. */
-  video?: boolean | undefined;
-};
-
-const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04];
+/** setTimeout's ms limit (2^31 - 1); beyond this Node and browsers clamp to ~1 ms. */
+const MAX_TIMEOUT_MS = 2_147_483_647;
 const NETWORK_MESSAGE = "Couldn't reach the beatmap mirror. Check your connection and try again.";
-const UNREADABLE_MESSAGE = "The beatmap mirror sent a response we couldn't read.";
-const NOT_ZIP_MESSAGE = "The mirror sent something that isn't a beatmap archive.";
 
 const isId = (id: number): boolean => Number.isSafeInteger(id) && id > 0;
 const checkSetId = (setId: number): void => {
   if (!isId(setId)) throw new RangeError("setId must be a positive integer.");
 };
 const trimSlashes = (url: string): string => url.replace(/\/+$/, "");
-const requestIdOf = (response: Response): string | null =>
-  response.headers.get("x-hinai-request-id");
-const forensicsUrlOf = (response: Response): string | null =>
-  response.headers.get("x-hinai-forensics");
-/** setTimeout's ms limit (2^31 - 1); beyond this Node and browsers clamp to ~1 ms. */
-const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
  * @function setDownloadUrl
@@ -79,39 +59,6 @@ export const setDownloadUrl = (
   checkSetId(setId);
   return `${trimSlashes(baseUrl)}/api/v1/hinai/d/${setId}${video ? "" : "?noVideo=true"}`;
 };
-
-export type HinaiClientOptions = {
-  /** Default https://mirror.hinamizawa.ai. Must be an absolute http(s) URL. */
-  baseUrl?: string | undefined;
-  fetch?: ((input: string | URL, init?: RequestInit) => Promise<Response>) | undefined;
-  /**
-   * Sent as User-Agent on every request, as the mirror asks. Servers only: in a browser (where
-   * `document` exists) or a worker (`self` with no `window`, and `importScripts`) it's ignored,
-   * since pages and workers can't set it and extra headers force a preflight.
-   */
-  userAgent?: string | undefined;
-  /**
-   * How long a metadata or availability request may take, body included, and how long a download
-   * may wait for its headers (the body then streams with no limit but your signal). Default
-   * HINAI_TIMEOUT_MS (10 s). Must be an integer from 1 to 2147483647 (2^31 - 1): `setTimeout`
-   * overflows and gets clamped to ~1 ms beyond that, which would time out almost immediately.
-   */
-  timeoutMs?: number | undefined;
-};
-
-/** One request's signals: the caller's, plus a deadline that can be stopped. */
-type Attempt = {
-  signal: AbortSignal;
-  /** Stops the deadline (a download, once its body starts). */
-  stop: () => void;
-  /**
-   * Throws what an abort or timeout means (the caller's reason, or a timeout carrying the ids of
-   * `response`, when there is one); else returns.
-   */
-  settle: (cause: unknown, response?: Response) => void;
-};
-
-type JsonRead = { ok: true; body: unknown } | { ok: false; cause: unknown };
 
 /**
  * @function createHinaiClient
@@ -140,6 +87,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
   const headers: Record<string, string> | undefined =
     options.userAgent && !inBrowser ? { "User-Agent": options.userAgent } : undefined;
 
+  /** Starts a request's deadline, joined with the caller's signal. */
   const begin = (signal: AbortSignal | undefined): Attempt => {
     const deadline = new AbortController();
     const timer = setTimeout(
@@ -155,12 +103,7 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
           throw new HinaiError(
             "timeout",
             `The beatmap mirror didn't answer in time (${timeoutMs} ms). Try again.`,
-            {
-              retryable: true,
-              requestId: response ? requestIdOf(response) : null,
-              forensicsUrl: response ? forensicsUrlOf(response) : null,
-              cause,
-            },
+            { retryable: true, ...responseIds(response), cause },
           );
         }
       },
@@ -177,147 +120,25 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
     }
   };
 
-  /** A body's JSON, or why it couldn't be read. Aborts and timeouts are thrown instead. */
-  const readJson = async (response: Response, attempt: Attempt): Promise<JsonRead> => {
-    try {
-      return { ok: true, body: await response.json() };
-    } catch (cause) {
-      attempt.settle(cause, response);
-      return { ok: false, cause };
-    }
-  };
-
-  const unreadable = (response: Response, cause?: unknown): HinaiError =>
-    new HinaiError("bad_response", UNREADABLE_MESSAGE, {
-      status: response.status,
-      retryable: true,
-      requestId: requestIdOf(response),
-      forensicsUrl: forensicsUrlOf(response),
-      cause,
-    });
-
-  /**
-   * The HinaiError for a non-OK response: not_found (with `notFound` as the message, never
-   * retryable) for a 404, else the mirror's code, error and hint when its body has them, else
-   * http_error. 429 and 5xx are retryable unless the mirror says otherwise. The mirror's own hint
-   * is passed through even on a 404, when its body parses.
-   */
-  const errorFor = async (
-    response: Response,
-    attempt: Attempt,
-    notFound: string,
-  ): Promise<HinaiError> => {
-    const { status } = response;
-    const requestId = requestIdOf(response);
-    const forensicsUrl = forensicsUrlOf(response);
-    const retryable = status === 429 || status >= 500;
-    const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"), Date.now());
-    const read = await readJson(response, attempt);
-    const parsed = hinaiErrorSchema.safeParse(read.ok ? read.body : null);
-    if (status === 404) {
-      return new HinaiError("not_found", notFound, {
-        status,
-        requestId,
-        forensicsUrl,
-        hint: parsed.success ? (parsed.data.hint ?? null) : null,
-      });
-    }
-    return parsed.success
-      ? new HinaiError(parsed.data.code, parsed.data.error, {
-          status,
-          retryable: parsed.data.retryable ?? retryable,
-          retryAfterMs,
-          requestId,
-          forensicsUrl,
-          hint: parsed.data.hint,
-        })
-      : new HinaiError("http_error", `The beatmap mirror answered ${status}.`, {
-          status,
-          retryable,
-          retryAfterMs,
-          requestId,
-          forensicsUrl,
-        });
-  };
-
-  const fetchBatch = async (
-    ids: readonly number[],
+  /** GETs a JSON body that must match `schema`, timed end to end, body included. */
+  const getJson = async <T>(
+    url: string,
+    schema: z.ZodType<T>,
     signal: AbortSignal | undefined,
-  ): Promise<unknown[]> => {
+    notFound: string,
+  ): Promise<T> => {
     const attempt = begin(signal);
     try {
-      const response = await open(`${baseUrl}/api/v2/beatmaps?ids=${ids.join(",")}`, attempt);
-      if (!response.ok) {
-        throw await errorFor(response, attempt, "The beatmap mirror has no metadata lookup here.");
-      }
+      const response = await open(url, attempt);
+      if (!response.ok) throw await errorFor(response, attempt, notFound);
       const read = await readJson(response, attempt);
       if (!read.ok) throw unreadable(response, read.cause);
-      if (!Array.isArray(read.body)) throw unreadable(response);
-      return read.body;
+      const parsed = schema.safeParse(read.body);
+      if (!parsed.success) throw unreadable(response, parsed.error);
+      return parsed.data;
     } finally {
       attempt.stop();
     }
-  };
-
-  /** Reads a download to the end, checking the zip signature before reporting any progress. */
-  const readArchive = async (
-    response: Response,
-    signal: AbortSignal | undefined,
-    onProgress: DownloadOptions["onProgress"],
-  ): Promise<Blob> => {
-    const notZip = () =>
-      new HinaiError("bad_response", NOT_ZIP_MESSAGE, {
-        status: response.status,
-        retryable: true,
-        requestId: requestIdOf(response),
-        forensicsUrl: forensicsUrlOf(response),
-      });
-    if (!response.body) throw notZip();
-    let total = Number(response.headers.get("content-length")) || null;
-    const reader = response.body.getReader();
-    const stop = () => {
-      reader.cancel().catch(() => undefined);
-    };
-    // Cut the read short on abort even when fetch doesn't end the body itself.
-    signal?.addEventListener("abort", stop, { once: true });
-    const chunks: BlobPart[] = [];
-    const head: number[] = [];
-    let loaded = 0;
-    try {
-      for (;;) {
-        let chunk: Awaited<ReturnType<typeof reader.read>>;
-        try {
-          chunk = await reader.read();
-        } catch (cause) {
-          signal?.throwIfAborted();
-          throw new HinaiError("network", "The download was interrupted. Try again.", {
-            retryable: true,
-            requestId: requestIdOf(response),
-            forensicsUrl: forensicsUrlOf(response),
-            cause,
-          });
-        }
-        signal?.throwIfAborted();
-        if (chunk.done) break;
-        chunks.push(chunk.value);
-        loaded += chunk.value.byteLength;
-        if (head.length < ZIP_MAGIC.length) {
-          head.push(...chunk.value.subarray(0, ZIP_MAGIC.length - head.length));
-          if (head.length < ZIP_MAGIC.length) continue;
-          if (!ZIP_MAGIC.every((byte, i) => head[i] === byte)) throw notZip();
-        }
-        // A compressing proxy can report an encoded content-length shorter than the decoded body.
-        if (total !== null && loaded > total) total = null;
-        onProgress?.({ loaded, total });
-      }
-    } catch (error) {
-      stop();
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", stop);
-    }
-    if (head.length < ZIP_MAGIC.length) throw notZip();
-    return new Blob(chunks, { type: OSZ_MIME });
   };
 
   return {
@@ -339,7 +160,14 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
       const wanted = new Set(valid);
       const found = new Map<number, BeatmapMeta>();
       for (let i = 0; i < valid.length; i += HINAI_BATCH_LIMIT) {
-        for (const row of await fetchBatch(valid.slice(i, i + HINAI_BATCH_LIMIT), signal)) {
+        const batch = valid.slice(i, i + HINAI_BATCH_LIMIT);
+        const rows = await getJson(
+          `${baseUrl}/api/v2/beatmaps?ids=${batch.join(",")}`,
+          hinaiBatchSchema,
+          signal,
+          "The beatmap mirror has no metadata lookup here.",
+        );
+        for (const row of rows) {
           const parsed = osuBeatmapRowSchema.safeParse(row);
           if (parsed.success && wanted.has(parsed.data.id)) {
             found.set(parsed.data.id, toBeatmapMeta(parsed.data));
@@ -364,21 +192,16 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
       { signal }: AvailabilityOptions = {},
     ): Promise<SetAvailability> {
       checkSetId(setId);
-      const attempt = begin(signal);
-      try {
-        const response = await open(`${baseUrl}/api/s/${setId}/availability`, attempt);
-        if (!response.ok) {
-          throw await errorFor(response, attempt, "This beatmapset isn't on the mirror.");
-        }
-        const read = await readJson(response, attempt);
-        if (!read.ok) throw unreadable(response, read.cause);
-        const parsed = hinaiAvailabilitySchema.safeParse(read.body);
-        if (!parsed.success) throw unreadable(response, parsed.error);
-        const { download_disabled, more_information } = parsed.data.availability;
-        return { downloadable: download_disabled !== true, reason: more_information };
-      } finally {
-        attempt.stop();
-      }
+      const { availability } = await getJson(
+        `${baseUrl}/api/s/${setId}/availability`,
+        hinaiAvailabilitySchema,
+        signal,
+        "This beatmapset isn't on the mirror.",
+      );
+      return {
+        downloadable: availability.download_disabled !== true,
+        reason: availability.more_information,
+      };
     },
 
     /**
@@ -411,4 +234,5 @@ export const createHinaiClient = (options: HinaiClientOptions = {}) => {
   };
 };
 
+/** The client createHinaiClient returns: getBeatmaps, getAvailability and downloadSet. */
 export type HinaiClient = ReturnType<typeof createHinaiClient>;

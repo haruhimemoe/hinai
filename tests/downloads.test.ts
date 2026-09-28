@@ -1,74 +1,22 @@
 /**
  * @file tests/downloads.test.ts
- * @desc hinai downloads: availability, streamed download with progress, every failure mode, abort.
+ * @desc downloadSet and setDownloadUrl: the streamed no-video archive with progress, video on
+ *       request, error statuses, and how bodies are read (the zip check before any progress,
+ *       onProgress errors, content-length that turns out short, signatures split across chunks).
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Tue Sep 22, 2026
+ * @modified Mon Sep 28, 2026
  */
 
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { createHinaiClient, HinaiError, OSZ_MIME, setDownloadUrl } from "../src/index.js";
-import unknown from "./fixtures/availability-unknown.json" with { type: "json" };
-import { fakeOsz, HINAI_AVAILABILITY_URL, HINAI_DOWNLOAD_URL } from "./helpers/hinai-downloads.js";
+import { fakeOsz, HINAI_DOWNLOAD_URL } from "./helpers/hinai-downloads.js";
 import { setupHinaiServer } from "./helpers/hinai-server.js";
+import { failure, stalled, stub, ZIP_HEAD, zip } from "./helpers/stub-fetch.js";
 
 const server = setupHinaiServer();
-const downloader = createHinaiClient();
-
-const availability = (disabled: boolean | null, info: string | null) => ({
-  id: 1,
-  availability: { download_disabled: disabled, more_information: info },
-  video: null,
-  cached: { withVideo: false, noVideo: false },
-});
-
-describe("getAvailability", () => {
-  it("reads the recorded answer for a normal set", async () => {
-    await expect(downloader.getAvailability(39804)).resolves.toEqual({
-      downloadable: true,
-      reason: null,
-    });
-  });
-
-  it("reports a set the mirror won't serve, with its reason", async () => {
-    server.use(
-      http.get(HINAI_AVAILABILITY_URL, () =>
-        HttpResponse.json(availability(true, "DMCA takedown")),
-      ),
-    );
-    await expect(downloader.getAvailability(1)).resolves.toEqual({
-      downloadable: false,
-      reason: "DMCA takedown",
-    });
-  });
-
-  it("treats an unknown download_disabled (null) as downloadable", async () => {
-    server.use(http.get(HINAI_AVAILABILITY_URL, () => HttpResponse.json(availability(null, null))));
-    await expect(downloader.getAvailability(1)).resolves.toEqual({
-      downloadable: true,
-      reason: null,
-    });
-  });
-
-  it("turns the recorded 404 into a non-retryable not_found", async () => {
-    server.use(http.get(HINAI_AVAILABILITY_URL, () => HttpResponse.json(unknown, { status: 404 })));
-    await expect(downloader.getAvailability(999999999)).rejects.toMatchObject({
-      name: "HinaiError",
-      code: "not_found",
-      status: 404,
-      retryable: false,
-    });
-  });
-
-  it("rejects a 200 it can't read", async () => {
-    server.use(http.get(HINAI_AVAILABILITY_URL, () => HttpResponse.json({ nope: true })));
-    await expect(downloader.getAvailability(1)).rejects.toMatchObject({
-      code: "bad_response",
-      retryable: true,
-    });
-  });
-});
+const client = createHinaiClient();
 
 describe("downloadSet", () => {
   it("streams the no-video archive and reports progress", async () => {
@@ -81,7 +29,7 @@ describe("downloadSet", () => {
       }),
     );
     const progress: { loaded: number; total: number | null }[] = [];
-    const blob = await downloader.downloadSet(39804, { onProgress: (p) => progress.push(p) });
+    const blob = await client.downloadSet(39804, { onProgress: (p) => progress.push(p) });
     expect(new URL(requested).searchParams.get("noVideo")).toBe("true");
     expect(blob.type).toBe(OSZ_MIME);
     expect(new Uint8Array(await blob.arrayBuffer())).toEqual(fakeOsz(39804));
@@ -97,7 +45,7 @@ describe("downloadSet", () => {
         ),
       ),
     );
-    await expect(downloader.downloadSet(1)).rejects.toMatchObject({
+    await expect(client.downloadSet(1)).rejects.toMatchObject({
       code: "upstream_relay_shed",
       status: 429,
       retryable: true,
@@ -107,7 +55,7 @@ describe("downloadSet", () => {
 
   it("treats a bare 503 as retryable", async () => {
     server.use(http.get(HINAI_DOWNLOAD_URL, () => new HttpResponse(null, { status: 503 })));
-    await expect(downloader.downloadSet(1)).rejects.toMatchObject({
+    await expect(client.downloadSet(1)).rejects.toMatchObject({
       code: "http_error",
       status: 503,
       retryable: true,
@@ -124,7 +72,7 @@ describe("downloadSet", () => {
         ),
       ),
     );
-    await expect(downloader.downloadSet(1)).rejects.toMatchObject({
+    await expect(client.downloadSet(1)).rejects.toMatchObject({
       code: "not_found",
       message: "The mirror doesn't have this beatmapset.",
       retryable: false,
@@ -138,7 +86,7 @@ describe("downloadSet", () => {
         () => new HttpResponse("<html>oops</html>", { headers: { "content-type": "text/html" } }),
       ),
     );
-    await expect(downloader.downloadSet(1)).rejects.toMatchObject({
+    await expect(client.downloadSet(1)).rejects.toMatchObject({
       code: "bad_response",
       retryable: true,
     });
@@ -146,7 +94,7 @@ describe("downloadSet", () => {
 
   it("wraps network failures", async () => {
     server.use(http.get(HINAI_DOWNLOAD_URL, () => HttpResponse.error()));
-    const error = await downloader.downloadSet(1).catch((e: unknown) => e);
+    const error = await client.downloadSet(1).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(HinaiError);
     expect(error).toMatchObject({ code: "network", retryable: true });
   });
@@ -154,7 +102,7 @@ describe("downloadSet", () => {
   it("passes an abort through untouched", async () => {
     const controller = new AbortController();
     controller.abort();
-    const error = await downloader
+    const error = await client
       .downloadSet(39804, { signal: controller.signal })
       .catch((e: unknown) => e);
     expect(error).not.toBeInstanceOf(HinaiError);
@@ -180,7 +128,81 @@ describe("downloadSet with videos", () => {
         return new HttpResponse(fakeOsz(39804));
       }),
     );
-    await downloader.downloadSet(39804, { video: true });
+    await client.downloadSet(39804, { video: true });
     expect(new URL(requested).search).toBe("");
+  });
+});
+
+describe("download bodies", () => {
+  it("turns a download's 404 into a not_found and passes its hint through", async () => {
+    const { client } = stub(() =>
+      Response.json(
+        { code: "beatmapset_unknown", error: "nope", hint: "try later" },
+        { status: 404 },
+      ),
+    );
+    expect(await failure(client.downloadSet(1))).toMatchObject({
+      code: "not_found",
+      hint: "try later",
+    });
+  });
+
+  it("lets an onProgress error through untouched and stops reading", async () => {
+    const { body, state } = stalled(undefined, zip());
+    const { client } = stub(() => new Response(body));
+    const oops = new Error("render broke");
+    const error = await failure(
+      client.downloadSet(1, {
+        onProgress: () => {
+          throw oops;
+        },
+      }),
+    );
+    expect(error).toBe(oops);
+    expect(state.cancelled).toBe(true);
+  });
+
+  it("stops at the first chunk when it isn't a zip", async () => {
+    const { body, state } = stalled(undefined, new TextEncoder().encode("<html>oops"));
+    const { client } = stub(() => new Response(body));
+    const progress: number[] = [];
+    const error = await failure(
+      client.downloadSet(1, { onProgress: (p) => progress.push(p.loaded) }),
+    );
+    expect(error).toMatchObject({ code: "bad_response", status: 200, retryable: true });
+    expect(state.cancelled).toBe(true);
+    expect(progress).toEqual([]);
+  });
+
+  it("drops total once a compressing proxy makes loaded pass the encoded content-length", async () => {
+    const bytes = Uint8Array.from([...ZIP_HEAD, 1, 2, 3, 4, 5, 6]);
+    const { client } = stub(() => new Response(bytes, { headers: { "content-length": "3" } }));
+    const progress: (number | null)[] = [];
+    await client.downloadSet(1, { onProgress: (p) => progress.push(p.total) });
+    expect(progress.at(-1)).toBeNull();
+  });
+
+  it("reads a zip signature split across chunks", async () => {
+    const { client } = stub(
+      () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(Uint8Array.from([0x50, 0x4b]));
+              controller.enqueue(Uint8Array.from([0x03, 0x04, 9]));
+              controller.close();
+            },
+          }),
+        ),
+    );
+    expect((await client.downloadSet(1)).size).toBe(5);
+  });
+
+  it.each([
+    ["shorter than a zip signature", () => new Response(Uint8Array.from([0x50, 0x4b]))],
+    ["empty", () => new Response(null)],
+  ])("calls a body that's %s a bad_response", async (_name, respond) => {
+    const { client } = stub(respond);
+    expect(await failure(client.downloadSet(1))).toMatchObject({ code: "bad_response" });
   });
 });

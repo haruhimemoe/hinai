@@ -1,13 +1,25 @@
 /**
  * @file tests/exports.test.ts
- * @desc The public surface: exactly these runtime exports, so an accidental export or removal
- *       shows up in review as a semver question.
+ * @desc The public surface: exactly these runtime exports, and every type export (a removed or
+ *       renamed type fails `bun run typecheck`), so a change shows up in review as a semver
+ *       question.
  * @author David @dvhsh (https://dvh.sh)
  * @created Wed Sep 23, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
-import { expect, it } from "vitest";
+import { expect, expectTypeOf, it } from "vitest";
+import type {
+  AvailabilityOptions,
+  BeatmapLookup,
+  BeatmapOptions,
+  DownloadOptions,
+  DownloadProgress,
+  HinaiClient,
+  HinaiClientOptions,
+  HinaiErrorCode,
+  SetAvailability,
+} from "../src/index.js";
 import * as api from "../src/index.js";
 
 it("exports the documented runtime API", () => {
@@ -25,4 +37,16 @@ it("exports the documented runtime API", () => {
       "setDownloadUrl",
     ]
   `);
+});
+
+it("exports the documented types", () => {
+  expectTypeOf<BeatmapLookup["missing"]>().toEqualTypeOf<number[]>();
+  expectTypeOf<BeatmapOptions>().toHaveProperty("signal");
+  expectTypeOf<SetAvailability["downloadable"]>().toEqualTypeOf<boolean>();
+  expectTypeOf<AvailabilityOptions>().toHaveProperty("signal");
+  expectTypeOf<DownloadProgress["total"]>().toEqualTypeOf<number | null>();
+  expectTypeOf<DownloadOptions>().toHaveProperty("onProgress");
+  expectTypeOf<HinaiClientOptions>().toHaveProperty("userAgent");
+  expectTypeOf<HinaiClient>().toHaveProperty("downloadSet");
+  expectTypeOf<"network">().toExtend<HinaiErrorCode>();
 });

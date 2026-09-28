@@ -3,7 +3,7 @@
  * @desc Retry-After parsing (seconds and HTTP dates) and exponential backoff.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Thu Sep 24, 2026
  */
 
 import { describe, expect, it } from "vitest";

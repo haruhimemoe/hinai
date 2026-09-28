@@ -1,9 +1,10 @@
 /**
- * @file tests/client.test.ts
- * @desc hinai client: field mapping, missing ids, batching, dedupe, and each failure mode.
+ * @file tests/beatmaps.test.ts
+ * @desc getBeatmaps against the msw mirror: mapping rows onto BeatmapMeta, missing ids, batching
+ *       and dedupe, rows it didn't ask for, and each failure mode.
  * @author David @dvhsh (https://dvh.sh)
  * @created Tue Sep 22, 2026
- * @modified Wed Sep 23, 2026
+ * @modified Mon Sep 28, 2026
  */
 
 import { HttpResponse, http } from "msw";

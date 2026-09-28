@@ -20,7 +20,7 @@ npm install @haruhimemoe/hinai zod
 bun add @haruhimemoe/hinai zod
 ```
 
-`zod` (4.0.16 or later in 4.x) is a peer dependency. `@haruhimemoe/osu` installs with it; only its beatmap shapes (`@haruhimemoe/osu/shapes`) are used, not its API client. If your app imports `@haruhimemoe/osu` too, keep it on a matching version (0.2.x for this release), so there's one copy and one `BeatmapMeta` type.
+`zod` (4.0.16 or later in 4.x) is a peer dependency. `@haruhimemoe/osu` installs with it; only its beatmap shapes (`@haruhimemoe/osu/shapes`) are used, not its API client. If your app imports `@haruhimemoe/osu` too, keep it on a matching version (0.3.x for this release), so there's one copy and one `BeatmapMeta` type.
 
 ## Usage
 
@@ -225,7 +225,7 @@ The handlers answer on `https://mirror.hinamizawa.ai` only; for another `baseUrl
 - **Node:** 22.12 or later on servers.
 - **Browsers and workers:** Safari 17.4+, Chrome 120+, or Firefox 124+ (the floor is `AbortSignal.any` and `URL.canParse`; older engines throw a plain `TypeError` instead of a `HinaiError`).
 - **Module format:** ES modules, with TypeScript types included.
-- **Dependencies:** `zod` ^4.0.16 (peer) and `@haruhimemoe/osu` ^0.2.0. `msw` ^2.0.0 is an optional peer, needed only for `@haruhimemoe/hinai/testing`.
+- **Dependencies:** `zod` ^4.0.16 (peer) and `@haruhimemoe/osu` ^0.3.0. `msw` ^2.0.0 is an optional peer, needed only for `@haruhimemoe/hinai/testing`.
 
 ## License
 

@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.3.0] - 2026-09-28
 
+### Changed
+
+- Depends on `@haruhimemoe/osu` 0.3.0. If your app imports `@haruhimemoe/osu` directly, move it to 0.3.x so both share one copy.
+
 ### Added
 
 - `@haruhimemoe/hinai/testing`: msw handlers that answer like the mirror (`hinaiHandlers`, `hinaiBatchHandler`, `hinaiDownloadHandlers`, `hinaiUnknownSetHandler`), the endpoint paths, the answers recorded from the mirror (`recordedBeatmaps`, `recordedAvailability`, `recordedUnknownSet`) and `fakeOsz(setId)`. Apps can mock the mirror with what this package tests itself with, instead of copies that drift. `msw` ^2.0.0 is an optional peer dependency, needed only for this entry.

@@ -30,7 +30,7 @@
 - **Public API is pinned** by `tests/exports.test.ts`: the runtime exports by snapshot, the type exports by `bun run typecheck`. Adding or removing an export is a semver decision: note it in `CHANGELOG.md`.
 - **Docs match the code.** `README.md` documents every export, option, default and error code. Change it in the same commit as the code, and update `llms.txt` when a README section is added, renamed or removed.
 - **Changelog:** user-visible changes get a line under `## [Unreleased]` in `CHANGELOG.md` (Keep a Changelog 1.1.0). Never rewrite a released entry.
-- **Releases are cut by the maintainers.** Don't bump the version, tag or publish.
+- **Releases are cut by the maintainers.** Don't bump the version, tag or publish unless a maintainer asks. A release commit moves `## [Unreleased]` to the new version with its date and compare link, and bumps `package.json`; a minor for new exports (like a new entry point), a patch for fixes only.
 - Code style: Biome (2 spaces, double quotes, 100 columns). Every file starts with the `@file / @desc / @author / @created / @modified` header. Exported functions get JSDoc with `@function`, `@param`, `@returns`. Imports in `src/` use `.js` extensions.
 
 ## Before calling a change done

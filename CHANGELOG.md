@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-28
+
 ### Added
 
 - `@haruhimemoe/hinai/testing`: msw handlers that answer like the mirror (`hinaiHandlers`, `hinaiBatchHandler`, `hinaiDownloadHandlers`, `hinaiUnknownSetHandler`), the endpoint paths, the answers recorded from the mirror (`recordedBeatmaps`, `recordedAvailability`, `recordedUnknownSet`) and `fakeOsz(setId)`. Apps can mock the mirror with what this package tests itself with, instead of copies that drift. `msw` ^2.0.0 is an optional peer dependency, needed only for this entry.
@@ -40,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `HinaiError` with a `code`, `retryable`, `retryAfterMs`, the mirror's `hint`, `requestId` and `forensicsUrl`.
 - `backoffDelayMs` and `parseRetryAfter` for retry loops.
 
-[unreleased]: https://github.com/haruhimemoe/hinai/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/haruhimemoe/hinai/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/haruhimemoe/hinai/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/haruhimemoe/hinai/compare/07a38ad40f9bb652940badf2fc456877c1443b56...v0.2.0
 [0.1.0]: https://github.com/haruhimemoe/hinai/tree/07a38ad40f9bb652940badf2fc456877c1443b56

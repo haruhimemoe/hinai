@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions and feedback
-    url: https://discord.gg/bKy9kjMV4y
+    url: https://haruhime.moe/discord
     about: Ask on the haruhime.moe Discord server.
   - name: Report a vulnerability
     url: https://github.com/haruhimemoe/hinai/security/advisories/new

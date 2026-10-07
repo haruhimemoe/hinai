@@ -2,6 +2,9 @@
 
 # @haruhimemoe/hinai
 
+> [!WARNING]
+> **Deprecated.** This client moved to [`@haruhimemoe/mirror`](https://github.com/haruhimemoe/mirror), unchanged: import `@haruhimemoe/mirror/hinai` instead of `@haruhimemoe/hinai`, and `@haruhimemoe/mirror/testing` instead of `@haruhimemoe/hinai/testing`. Remove this package when you switch, so there's one `HinaiError` class. This repo is archived and gets no more releases.
+
 A client for the [hinai beatmap mirror](https://mirror.hinamizawa.ai) (mirror.hinamizawa.ai), used by the haruhime.moe tools:
 
 - **Metadata:** difficulties by id, as `BeatmapMeta` from [`@haruhimemoe/osu/shapes`](https://github.com/haruhimemoe/osu#shapes). Pass as many ids as you like; the client asks the mirror 100 at a time. Ids the mirror doesn't know come back in `missing`, and so do ids that aren't positive integers (those are never sent).

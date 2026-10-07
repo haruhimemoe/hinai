@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Deprecated
+
+- The whole package: use `@haruhimemoe/mirror/hinai` and `@haruhimemoe/mirror/testing` (same API). No further releases.
+
 ## [0.3.1] - 2026-09-28
 
 ### Changed
